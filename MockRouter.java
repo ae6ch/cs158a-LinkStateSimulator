@@ -50,6 +50,7 @@ public class MockRouter {
                             pw.println("STOPPING");
                             pw.flush();
                             s.close();
+                            keepRunning=false;
                             Thread.currentThread().interrupt();
                         }
              
