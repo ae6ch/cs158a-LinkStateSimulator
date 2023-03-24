@@ -11,9 +11,9 @@ public class MockRouterTest {
         new Thread(mr3.Listener).start();
         // Client not implemented yet
         // Start all the client(initiator) threads
-        // new Thread(mr1.Initiator).start();
-        // new Thread(mr2.Initiator).start();
-        // new Thread(mr3.Initiator).start();
+        new Thread(mr1.Initiator).start();
+        new Thread(mr2.Initiator).start();
+        new Thread(mr3.Initiator).start();
 
 
     }
