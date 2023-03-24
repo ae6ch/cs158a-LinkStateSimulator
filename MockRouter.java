@@ -6,17 +6,17 @@ public class MockRouter {
     public final Runnable Listener;
     public final Runnable Initiator;  
     String adjacents;
+    boolean keepRunning=true;
     public MockRouter(int portNumber, String adjacents)  { // adjacents is port-distance port-distace port-distace 
         this.adjacents = adjacents;
         System.out.println("In the construtor");
 
 
 
-
         Listener = new Runnable() {           // SERVER CODE GOES HERE
             ServerSocket ss;
             Socket s;
-            boolean keepRunning=true;
+          
             public void run()  { 
                 try {
                      ss = new ServerSocket(portNumber);
@@ -93,7 +93,7 @@ public class MockRouter {
                 int port;
                 int distance;
 
-                while (true) {
+                while (keepRunning) {
                     float sleepyTime=(float) ((Math.random()*1000)+3000.0);
 
                     try { 
@@ -119,6 +119,7 @@ public class MockRouter {
                                 else {
                                     System.out.printf("");
                                 }
+                            s.close();
                         } 
                        catch (Exception IOException) {
                           // error opening the socket
