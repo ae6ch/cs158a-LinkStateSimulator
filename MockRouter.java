@@ -43,8 +43,10 @@ public class MockRouter {
                          * followed by a line with the word TABLE followed by lines giving its routing table, 
                          * (c) s followed by a newline (stop) to which it responds with STOPPING and a newline and then it stops its thread. 
                         */
-                        if (command.charAt(0) == 'k') {  // Keepalive.  Just just a do-nothing to verify the connect/accept/read/write was working
-                            System.out.printf("Port %d:%s:%d - RX Keepalive\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());        
+                        if (command.charAt(0) == 'k') {  // Keepalive.  Just just a do-nothing to verify the connect/accept/read/write was working, sends a k back.
+                            System.out.printf("Port %d:%s:%d - RX Keepalive\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());      
+                            pw.println("k");
+                            pw.flush();  
                         }    
                         if (command.charAt(0) == 'l') {  // Received a link state message *TODO*
                             System.out.printf("Port %d:%s:%d - RX Link State Message\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());        
@@ -109,8 +111,14 @@ public class MockRouter {
                            BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
                            PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
                            // do some stuff here with the remote connection
-                           pw.println("k"); // just send a keepalive for now, which isn't handled and is ignored
-                            s.close();
+                           pw.println("k"); // just send a keepalive for now, needs to come out when we do the link state packet part
+                           pw.flush();
+                                if (br.readLine().charAt(0) == 'k') { 
+                                    System.out.printf("Received Keepalive back from %d\n",port);
+                                }
+                                else {
+                                    System.out.printf("");
+                                }
                         } 
                        catch (Exception IOException) {
                           // error opening the socket
