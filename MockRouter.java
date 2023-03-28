@@ -152,11 +152,11 @@ public class MockRouter {
                 int distance;
 
                 while (keepRunning) {
-                    float sleepyTime=(float) ((Math.random()*1000)+3000.0);
+                    float sleepyTime=(float) ((Math.random()*1000)+3000);
 
                     try { 
                         System.out.printf("Client sleeping for %f\n",sleepyTime);
-                        Thread.sleep(50000);
+                        Thread.sleep((long)sleepyTime);
                     } catch (Exception ignore) {};
                     String[] endpoints = adjacents;
                     for (String e: endpoints) {     // Main outgoing connection loop here
