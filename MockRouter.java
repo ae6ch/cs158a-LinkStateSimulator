@@ -1,13 +1,24 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package linkstate;
+
 import java.net.*;
 import java.util.regex.Pattern;
 import java.io.*;
 
+
+/**
+ *
+ * @author zayd
+ */
 public class MockRouter {
     public final Runnable Listener;
     public final Runnable Initiator;  
-    String adjacents;
+    String[] adjacents;
     boolean keepRunning=true;
-    public MockRouter(int portNumber, String adjacents)  { // adjacents is port-distance port-distace port-distace 
+    public MockRouter(int portNumber, String[] adjacents)  { // adjacents is port-distance port-distace port-distace 
         this.adjacents = adjacents;
         System.out.println("In the construtor");
 
@@ -100,7 +111,7 @@ public class MockRouter {
                         System.out.printf("Client sleeping for %f\n",sleepyTime);
                         Thread.sleep(5000);
                     } catch (Exception ignore) {};
-                    String endpoints[] = adjacents.split(" ");
+                    String[] endpoints = adjacents;
                     for (String e: endpoints) {     // Main outgoing connection loop here
                      String ep[] = e.split("-");
                      System.out.printf("Thread %d connecting to Thread %s and Distance %s\n", portNumber,ep[0],ep[1]);
