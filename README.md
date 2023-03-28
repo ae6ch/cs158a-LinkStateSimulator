@@ -1,3 +1,4 @@
+# SJSU Spring 2023 CS158A Section 2 Homework 3
 # cs158a-LinkStateSimulator
 For the coding part, I want you to write a program, LinkStateSimulator.java, for the link state protocol and compare it to the behavior of distance vector routing for router in a line (the situation in class where we had a count-to-infinity problem). Your program will be compiled from the command-line by the grader using the line:
 
