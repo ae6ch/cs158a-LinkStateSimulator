@@ -27,16 +27,18 @@ public class MockRouter {
     
     public MockRouter(int portNumber, String[] adjacents)  { // adjacents is port-distance port-distace port-distace 
         this.adjacents = adjacents;
-        System.out.println("In the construtor");
+        //System.out.println("In the construtor");
         long startTime = Instant.now().toEpochMilli();
         int nextSeq = 1; // The next sequence number we use;
+        final int INITIAL_SEQ = 0; // The initial TTL for a LSP
         final int INITIAL_TTL = 60; // The initial TTL for a LSP
-        final int LSP_ANNOUNCE_TIME = 30; // The time between sending our own LSP announcements
-
+        final int LSA_REFRESH_TIME = 30; // The time between sending our own LSP announcements
         LinkedList<LSP> listLSP = new LinkedList<LSP>();    
-
+        
         ArrayList<Integer> myAdjRouterPorts = new ArrayList<Integer>(100);
         ArrayList<Integer> myDistances = new ArrayList<Integer>(100);
+        LSP myLSA = new LSP(Instant.now().toEpochMilli()-startTime, portNumber, INITIAL_SEQ,INITIAL_TTL, myAdjRouterPorts, myDistances);
+
         // Insert a LSP for all of our current links at start up
         for (int x=0; x < adjacents.length; x++) {
             String[] myAdjRouterPortDistance = adjacents[x].split("-");
@@ -44,9 +46,28 @@ public class MockRouter {
             myDistances.add(Integer.parseInt(myAdjRouterPortDistance[1]));
          }   
         // need to do this more then once, its going to age out eventually?
-        listLSP.add(new LSP(Instant.now().toEpochMilli()-startTime, portNumber, nextSeq++,INITIAL_TTL, myAdjRouterPorts, myDistances));
-            
-     
+        //listLSP.add(new LSP(Instant.now().toEpochMilli()-startTime, portNumber, nextSeq++,INITIAL_TTL, myAdjRouterPorts, myDistances));
+        
+             
+        ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
+        lsaRefresh.scheduleAtFixedRate(new Runnable() {
+          @Override
+          public void run() {
+            //System.out.printf("LSA Refresh for %d\n",portNumber);
+            myLSA.time=Instant.now().toEpochMilli()-startTime;
+            myLSA.seq++;
+            myLSA.ttl=INITIAL_TTL;
+
+            if(listLSP.contains(myLSA)) { 
+                listLSP.set(listLSP.indexOf(myLSA), myLSA);
+            }
+            else {
+                listLSP.add(myLSA);
+            }
+          }
+        }, 0, LSA_REFRESH_TIME, TimeUnit.SECONDS);
+  
+
 
         ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
         ttlAger.scheduleAtFixedRate(new Runnable() {
@@ -54,18 +75,17 @@ public class MockRouter {
           public void run() {
            
             for (LSP lspdb : listLSP) {
-                int ttl = lspdb.ttl();
+                int ttl = lspdb.ttl;
                 if (ttl == 1) {  // It's going to expire this time around
-                    System.out.printf("TTL expired for %d\n",lspdb.senderPort());
+                    System.out.printf("TTL expired for %d\n",lspdb.senderPort);
                 }
                 if (ttl <= 0) { // It's expired or already expired
-                    // need to figure out when its safe to do this
-                    // listLSP.remove(lspdb);
+                    // Probably need to populate a flood list per peer unfortunately
+                    listLSP.remove(lspdb);
                 } 
-                 
                 else {
-                    ttl--;                
-                    listLSP.set(listLSP.indexOf(lspdb), new LSP(lspdb.time(),lspdb.senderPort(),lspdb.seq(),ttl,lspdb.adjRouterPort(),lspdb.distance()));
+                    lspdb.ttl--;                
+                   // listLSP.set(listLSP.indexOf(lspdb), new LSP(lspdb.time,lspdb.senderPort,lspdb.seq,ttl,lspdb.adjRouterPort,lspdb.distance));
                 }
             }
           }
@@ -90,7 +110,7 @@ public class MockRouter {
                     }
                     catch (Exception IOException) {
                     }
-                    System.out.printf("[%d] accepted connection from %s:%d\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());
+                    //System.out.printf("[%d] accepted connection from %s:%d\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());
                     try { 
                         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
                         PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
@@ -110,8 +130,6 @@ public class MockRouter {
                         // Stores the links-distance pairs into 2 arrays, and then puts those in a record class called LSP, those LSPs are then put in a list called listLSP;
                         if (command.charAt(0) == 'l') {  // Received a link state message
                             String chunks[] = command.split(" ");
-                            //int [] adjRouterPorts = new int[100];
-                            //int [] distances = new int[100];
                             boolean dupSeq = false;
                             ArrayList<Integer> adjRouterPorts = new ArrayList<Integer>(100);
                             ArrayList<Integer> distances = new ArrayList<Integer>(100);
@@ -125,11 +143,30 @@ public class MockRouter {
                             }   
                             for (LSP lspdb : listLSP) {
                             // Find existing LSP for router
-                                if (lspdb.senderPort() == Integer.parseInt(chunks[1]))
-                                    if (lspdb.seq() >= Integer.parseInt(chunks[2])) {
+                                if (lspdb.senderPort == Integer.parseInt(chunks[1])) {
+                                    if (lspdb.seq == Integer.parseInt(chunks[2])) { // If the sequence number is the same, igore it
                                         dupSeq = true;
-                                        continue;// if found, see if sequence number is newer
-                                    }           
+                                        continue;
+                                    } 
+                                    if ( (lspdb.seq < Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) > 0) { // If the sequence number is newer and ttl>0, update it 
+                                        lspdb.time=Instant.now().toEpochMilli()-startTime;
+                                        lspdb.seq=Integer.parseInt(chunks[2]);
+                                        lspdb.ttl=Integer.parseInt(chunks[3]);
+                                        lspdb.adjRouterPort=adjRouterPorts;
+                                        lspdb.distance=distances;
+                                        dupSeq = true;
+                                        continue;
+                                    } 
+                                    if ( (lspdb.seq == Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) <= 0) { // If the sequence number is the same and ttl<=0, delete it
+                                        dupSeq = true;
+                                        listLSP.remove(listLSP.indexOf(lspdb));
+                                        continue;
+                                    } 
+                                    if (lspdb.seq > Integer.parseInt(chunks[2])) {   // If the sequence number is older, ignore it
+                                        dupSeq = true;
+                                        continue;
+                                    }
+                                }
                             }
 
       
@@ -150,10 +187,10 @@ public class MockRouter {
                         if (command.charAt(0) == 'h') {           // Dump all link state messages and routing table *TODO*
                             //System.out.printf("Port %d:%s:%d - RX HISTORY\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());  
                             for (LSP lsp : listLSP) {
-                                pw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time()),lsp.senderPort(),lsp.seq(),lsp.ttl());
-                                for (int x=0; x < lsp.adjRouterPort().size(); x++) {
+                                pw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time),lsp.senderPort,lsp.seq,lsp.ttl);
+                                for (int x=0; x < lsp.adjRouterPort.size(); x++) {
                                     //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
-                                    pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
+                                    pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
                                 }
                                 pw.println();
                                 pw.flush();
@@ -213,7 +250,7 @@ public class MockRouter {
                     String[] endpoints = adjacents;
                     for (String e: endpoints) {     // Main outgoing connection loop here
                         String ep[] = e.split("-");
-                        System.out.printf("[%d] connecting to Thread %s and Distance %s\n", portNumber,ep[0],ep[1]);
+                        //System.out.printf("[%d] connecting to Thread %s and Distance %s\n", portNumber,ep[0],ep[1]);
                         port = Integer.parseInt(ep[0]);
                         distance = Integer.parseInt(ep[1]);
                         // Find seqRecord for this ep, if it doesnt exist, insert a new one with a empty seqAck table
@@ -233,24 +270,24 @@ public class MockRouter {
                           for (LSP lsp : listLSP) {
                             //                                    pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
                          
-                            System.out.printf("[%d->%s] %s current lsp0 looking at %d:%d\n",portNumber,ep[0],sr.seqAck().get(lsp.senderPort()),lsp.senderPort(),lsp.seq());
+                            //System.out.printf("[%d->%s] %s current lsp0 looking at %d:%d\n",portNumber,ep[0],sr.seqAck().get(lsp.senderPort),lsp.senderPort,lsp.seq);
                             //System.out.printf("[%d->%s] %s current lsp0 looking at %d\n",portNumber,ep[0],sr.seqAck.get(lsp.senderPort()),lsp.seq());
-                            if (!sr.seqAck().containsKey(lsp.senderPort()))
-                                sr.seqAck().put(lsp.senderPort(),-1 );
+                            if (!sr.seqAck().containsKey(lsp.senderPort))
+                                sr.seqAck().put(lsp.senderPort,-1 );
                           
-                            if (sr.seqAck().get(lsp.senderPort()) >= lsp.seq()) {
-                                System.out.printf("[%d->%s] Skipping LSP %d:%d\n",portNumber,ep[0],lsp.senderPort(),lsp.seq());
+                            if (sr.seqAck().get(lsp.senderPort) >= lsp.seq) {
+                                //System.out.printf("[%d->%s] Skipping LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
                                 continue;
                             }
                             // Send the LSP
-                            System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort(),lsp.seq());
-                            pw.printf("l %d %d %d", lsp.senderPort(),lsp.seq(),lsp.ttl());
-                            for (int x=0; x < lsp.adjRouterPort().size(); x++) {
+                            System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
+                            pw.printf("l %d %d %d", lsp.senderPort,lsp.seq,lsp.ttl);
+                            for (int x=0; x < lsp.adjRouterPort.size(); x++) {
                                 //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
-                                pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
+                                pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
                                 
                             }
-                            sr.seqAck().put(lsp.senderPort(),lsp.seq());  // add logic to make sure we received the ACK above?
+                            sr.seqAck().put(lsp.senderPort,lsp.seq);  // add logic to make sure we received the ACK above?
                             pw.println();
                             pw.flush();
                             break; // we can only send one LSP per connection
