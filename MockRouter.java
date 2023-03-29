@@ -8,6 +8,8 @@ import java.net.*;
 import java.util.regex.Pattern;
 import java.io.*;
 import java.util.LinkedList;
+import java.util.Hashtable;
+
 
 import java.util.*;
 import java.time.*;
@@ -157,8 +159,10 @@ public class MockRouter {
                 int port;
                 int distance;
                 
+                Hashtable<Integer,seqRecord> hashseqRecord = new Hashtable<>();
+
                 
-                Hashtable<Integer,Integer> seqAck = new Hashtable<Integer,Integer>();
+                //Hashtable<Integer,Integer> seqAck = new Hashtable<Integer,Integer>();
                 while (keepRunning) {
                     float sleepyTime=(float) ((Math.random()*1000)+3000);
 
@@ -172,6 +176,14 @@ public class MockRouter {
                         System.out.printf("[%d] connecting to Thread %s and Distance %s\n", portNumber,ep[0],ep[1]);
                         port = Integer.parseInt(ep[0]);
                         distance = Integer.parseInt(ep[1]);
+                        // Find seqRecord for this ep, if it doesnt exist, insert a new one with a empty seqAck table
+                        if (!hashseqRecord.containsKey(Integer.parseInt(ep[0]))) {
+                            Hashtable<Integer,Integer> sa = new Hashtable<Integer,Integer>();
+                            seqRecord sr = new seqRecord(Integer.parseInt(ep[0]),sa);
+                            hashseqRecord.put(Integer.parseInt(ep[0]),sr);
+                        }
+                        seqRecord sr = hashseqRecord.get(Integer.parseInt(ep[0]));
+                        //sr.seqAck().get(Integer.parseInt(ep[0]));
                         try {
                           Socket s = new Socket("localhost", port);
                            BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
@@ -179,11 +191,14 @@ public class MockRouter {
                            // do some stuff here with the remote connection
                           // loop through lsp list, if there is a lsp, and the seq number is greater than the seqAck then send it
                           for (LSP lsp : listLSP) {
-                            System.out.printf("[%d->%s] %s current lsp0 looking at %d\n",portNumber,ep[0],seqAck.get(lsp.senderPort()),lsp.seq());
-                            if (!seqAck.containsKey(lsp.senderPort()))
-                                seqAck.put(lsp.senderPort(),-1 );
+                            //                                    pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
+                         
+                            System.out.printf("[%d->%s] %s current lsp0 looking at %d\n",portNumber,ep[0],sr.seqAck().get(lsp.senderPort()),lsp.seq());
+                            //System.out.printf("[%d->%s] %s current lsp0 looking at %d\n",portNumber,ep[0],sr.seqAck.get(lsp.senderPort()),lsp.seq());
+                            if (!sr.seqAck().containsKey(lsp.senderPort()))
+                                sr.seqAck().put(lsp.senderPort(),-1 );
                           
-                            if (seqAck.get(lsp.senderPort()) >= lsp.seq()) {
+                            if (sr.seqAck().get(lsp.senderPort()) >= lsp.seq()) {
                                 System.out.printf("[%d->%s] Skipping LSP %d\n",portNumber,ep[0],lsp.seq());
                                 continue;
                             }
@@ -194,7 +209,7 @@ public class MockRouter {
                                 //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
                                 pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
                             }
-                            seqAck.put(lsp.senderPort(),lsp.seq());
+                            sr.seqAck().put(lsp.senderPort(),lsp.seq());
                             pw.println();
                             pw.flush();
 
