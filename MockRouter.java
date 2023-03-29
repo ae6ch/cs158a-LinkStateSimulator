@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import java.io.*;
 import java.util.LinkedList;
 import java.util.*;
+import java.time.*;
 
 /**
  *
@@ -23,6 +24,7 @@ public class MockRouter {
     public MockRouter(int portNumber, String[] adjacents)  { // adjacents is port-distance port-distace port-distace 
         this.adjacents = adjacents;
         System.out.println("In the construtor");
+        long startTime = Instant.now().toEpochMilli();
 
 
 
@@ -84,7 +86,7 @@ public class MockRouter {
                         // TTL is decremented on storing the lsp
                         int ttl = Integer.parseInt(chunks[3])-1;
                         if (ttl >= 1) { 
-                            LSP lsp = new LSP(Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
+                            LSP lsp = new LSP(Instant.now().toEpochMilli()-startTime,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
                             listLSP.add(lsp);
                         } 
                         else { 
@@ -102,7 +104,7 @@ public class MockRouter {
                         if (command.charAt(0) == 'h') {           // Dump all link state messages and routing table *TODO*
                             System.out.printf("Port %d:%s:%d - RX HISTORY\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());  
                             for (LSP lsp : listLSP) {
-                                pw.printf("%d %d %d",lsp.senderPort(),lsp.seq(),lsp.ttl());
+                                pw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time()),lsp.senderPort(),lsp.seq(),lsp.ttl());
                                 for (int x=0; x < lsp.adjRouterPort().size(); x++) {
                                     //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
                                     pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
