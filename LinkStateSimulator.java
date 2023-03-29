@@ -5,11 +5,13 @@
 //package linkstate;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -38,7 +40,7 @@ public class LinkStateSimulator {
                 for(int i = 0; i < temp2.length; i++){
                     temp2[i] = temp[i+1];
                 }
-                MockRouter router = new MockRouter(Integer.getInteger(temp[0]),temp2);
+                MockRouter router = new MockRouter(Integer.parseInt(temp[0]),temp2);
                 routers.add(router);
                 new Thread(router.Listener).start();
                 new Thread(router.Initiator).start();
@@ -49,18 +51,25 @@ public class LinkStateSimulator {
         
         System.out.println("Initialization complete. Ready to accept commands.");
         
-//        Scanner input = new Scanner(System.in);
-//        String in = input.next();
-//        while(in != "e"){
-//            String[] cm = in.split(" ");
-//            if(cm[0] == "h"){
-//                
-//            }
-//            if(cm[0] == "s"){
-//                
-//            }
-//            in = input.next();
-//        }
+        Scanner input = new Scanner(System.in);
+        String in = input.next();
+        while(in != "e"){
+            String[] cm = in.split(" ");
+            Socket socket = new Socket("localhost", Integer.parseInt(cm[1]));
+            DataInputStream i = new DataInputStream(socket.getInputStream());
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+            
+            if(cm[0] == "h"){
+               out.writeChars("h\n");
+               System.out.println(new String(i.readAllBytes()));
+            }
+            if(cm[0] == "s"){
+               out.writeChars("s\n");
+            }
+            in = input.next();
+        }
     }
+    
+}
     
 }
