@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import java.io.*;
 import java.util.LinkedList;
 import java.util.Hashtable;
+import java.util.concurrent.*;
 
 
 import java.util.*;
@@ -28,8 +29,47 @@ public class MockRouter {
         this.adjacents = adjacents;
         System.out.println("In the construtor");
         long startTime = Instant.now().toEpochMilli();
+        int nextSeq = 1; // The next sequence number we use;
+        final int INITIAL_TTL = 60; // The initial TTL for a LSP
+        final int LSP_ANNOUNCE_TIME = 30; // The time between sending our own LSP announcements
 
-        LinkedList<LSP> listLSP = new LinkedList<LSP>();
+        LinkedList<LSP> listLSP = new LinkedList<LSP>();    
+
+        ArrayList<Integer> myAdjRouterPorts = new ArrayList<Integer>(100);
+        ArrayList<Integer> myDistances = new ArrayList<Integer>(100);
+        // Insert a LSP for all of our current links at start up
+        for (int x=0; x < adjacents.length; x++) {
+            String[] myAdjRouterPortDistance = adjacents[x].split("-");
+             myAdjRouterPorts.add(Integer.parseInt(myAdjRouterPortDistance[0]));
+            myDistances.add(Integer.parseInt(myAdjRouterPortDistance[1]));
+         }   
+        // need to do this more then once, its going to age out eventually?
+        listLSP.add(new LSP(Instant.now().toEpochMilli()-startTime, portNumber, nextSeq++,INITIAL_TTL, myAdjRouterPorts, myDistances));
+            
+     
+
+        ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
+        ttlAger.scheduleAtFixedRate(new Runnable() {
+          @Override
+          public void run() {
+           
+            for (LSP lspdb : listLSP) {
+                int ttl = lspdb.ttl();
+                if (ttl == 1) {  // It's going to expire this time around
+                    System.out.printf("TTL expired for %d\n",lspdb.senderPort());
+                }
+                if (ttl <= 0) { // It's expired or already expired
+                    // need to figure out when its safe to do this
+                    // listLSP.remove(lspdb);
+                } 
+                 
+                else {
+                    ttl--;                
+                    listLSP.set(listLSP.indexOf(lspdb), new LSP(lspdb.time(),lspdb.senderPort(),lspdb.seq(),ttl,lspdb.adjRouterPort(),lspdb.distance()));
+                }
+            }
+          }
+        }, 0, 1, TimeUnit.SECONDS);
 
 
         Listener = new Runnable() {           // SERVER CODE GOES HERE
@@ -62,7 +102,7 @@ public class MockRouter {
                          * (c) s followed by a newline (stop) to which it responds with STOPPING and a newline and then it stops its thread. 
                         */
                         if (command.charAt(0) == 'k') {  // Keepalive.  Just just a do-nothing to verify the connect/accept/read/write was working, sends a k back.
-                            System.out.printf("[%d] %s:%d - RX Keepalive\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());      
+                            //System.out.printf("[%d] %s:%d - RX Keepalive\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());      
                             pw.println("k");
                             pw.flush();  
                         }    
@@ -193,25 +233,27 @@ public class MockRouter {
                           for (LSP lsp : listLSP) {
                             //                                    pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
                          
-                            System.out.printf("[%d->%s] %s current lsp0 looking at %d\n",portNumber,ep[0],sr.seqAck().get(lsp.senderPort()),lsp.seq());
+                            System.out.printf("[%d->%s] %s current lsp0 looking at %d:%d\n",portNumber,ep[0],sr.seqAck().get(lsp.senderPort()),lsp.senderPort(),lsp.seq());
                             //System.out.printf("[%d->%s] %s current lsp0 looking at %d\n",portNumber,ep[0],sr.seqAck.get(lsp.senderPort()),lsp.seq());
                             if (!sr.seqAck().containsKey(lsp.senderPort()))
                                 sr.seqAck().put(lsp.senderPort(),-1 );
                           
                             if (sr.seqAck().get(lsp.senderPort()) >= lsp.seq()) {
-                                System.out.printf("[%d->%s] Skipping LSP %d\n",portNumber,ep[0],lsp.seq());
+                                System.out.printf("[%d->%s] Skipping LSP %d:%d\n",portNumber,ep[0],lsp.senderPort(),lsp.seq());
                                 continue;
                             }
                             // Send the LSP
-                            System.out.printf("[%d->%s]  Sending LSP %d\n",portNumber,ep[0],lsp.seq());
+                            System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort(),lsp.seq());
                             pw.printf("l %d %d %d", lsp.senderPort(),lsp.seq(),lsp.ttl());
                             for (int x=0; x < lsp.adjRouterPort().size(); x++) {
                                 //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
                                 pw.printf(" %d-%d",lsp.adjRouterPort().get(x),lsp.distance().get(x));
+                                
                             }
-                            sr.seqAck().put(lsp.senderPort(),lsp.seq());
+                            sr.seqAck().put(lsp.senderPort(),lsp.seq());  // add logic to make sure we received the ACK above?
                             pw.println();
                             pw.flush();
+                            break; // we can only send one LSP per connection
 
                           }
                           pw.println("k"); // just send a keepalive for now, needs to come out when we do the link state packet part
