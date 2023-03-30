@@ -1,7 +1,7 @@
 // A test class for MockRouter.  Starts 3 MockRouters on ports 9990/9991/9992 connected in a line.  9990-9991-9992 all with distance of 1
 public class MockRouterTest {
     public static void main(String args[]) {
-        MockRouter mr1 = new MockRouter(9990,"9991-1 9992-6 9993-1 9994-4 9995-1 9996-2 9997-1".split(" "));
+        MockRouter mr1 = new MockRouter(9990,"9991-1 9992-6 9993-1 9994-4 9995-1 9996-2".split(" "));
         MockRouter mr2 = new MockRouter(9991,"9990-1".split(" "));
         MockRouter mr3 = new MockRouter(9992,"9990-6".split(" "));
         

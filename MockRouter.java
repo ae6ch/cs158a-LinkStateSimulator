@@ -31,6 +31,10 @@ public class MockRouter {
     final int LSA_REFRESH_TIME = 30; // The time between sending our own LSP announcements
     LinkedList<LSP> listLSP = new LinkedList<LSP>();    
     
+private void serviceDownstream(Socket s) {
+
+}
+
 private void acceptConnection(Socket s) {                           // This code is used by the listener thread to accept a connection and handle it
     try { 
         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
@@ -271,15 +275,10 @@ private void acceptConnection(Socket s) {                           // This code
                         seqRecord sr = hashseqRecord.get(Integer.parseInt(ep[0]));
                         //sr.seqAck().get(Integer.parseInt(ep[0]));
                         try {
-                          Socket s = new Socket("localhost", port);
-                           BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
-                           PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
-                           // do some stuff here with the remote connection
+                         
                           // loop through lsp list, if there is a lsp, and the seq number is greater than the seqAck then send it
                           for (LSP lsp : listLSP) {
-
-                            //System.out.printf("[%d->%s] %s current lsp0 looking at %d:%d\n",portNumber,ep[0],sr.seqAck().get(lsp.senderPort),lsp.senderPort,lsp.seq);
-                            //System.out.printf("[%d->%s] %s current lsp0 looking at %d\n",portNumber,ep[0],sr.seqAck.get(lsp.senderPort()),lsp.seq());
+                            // If we dont have a seqAck for this senderPort, then add it
                             if (!sr.seqAck().containsKey(lsp.senderPort))
                                 sr.seqAck().put(lsp.senderPort,-1 );
                           
@@ -289,27 +288,30 @@ private void acceptConnection(Socket s) {                           // This code
                             }
                             // Send the LSP
                             System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
+                            Socket s = new Socket("localhost", port);
+                            BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
+                            PrintWriter pw = new PrintWriter(s.getOutputStream(),false);
                             pw.printf("l %d %d %d", lsp.senderPort,lsp.seq,lsp.ttl);
                             for (int x=0; x < lsp.adjRouterPort.size(); x++) {
                                 //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
                                 pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
                                 
                             }
-                            sr.seqAck().put(lsp.senderPort,lsp.seq);  // add logic to make sure we received the ACK above?
                             pw.println();
                             pw.flush();
-                            break; // we can only send one LSP per connection
-
+               
+                            if("ACK".equals(br.readLine())) {
+                                System.out.printf("[%d->%s]  Received ACK for LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
+                                sr.seqAck().put(lsp.senderPort,lsp.seq);
+                            }
+                            else {
+                                System.out.printf("[%d->%s]  No ACK for LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
+                            }
+                           
+                            s.close();
+                            continue; 
+                            
                           }
-                          //pw.println("k"); // just send a keepalive for now, needs to come out when we do the link state packet part
-                          //pw.flush();
-                          //  if (br.readLine().charAt(0) == 'k') { 
-                          //     //System.out.printf("Received Keepalive back from %d\n",port);
-                          //  }
-                          //  else {
-                          //      //System.out.printf("");
-                          //  }
-                          //  s.close();
                         } 
                        catch (Exception IOException) {
                           // error opening the socket
@@ -319,6 +321,7 @@ private void acceptConnection(Socket s) {                           // This code
 
             }
         };
+        
     }
 
 }
