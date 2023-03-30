@@ -29,7 +29,8 @@ public class MockRouter {
     final int INITIAL_SEQ = 0; // The initial TTL for a LSP
     final int INITIAL_TTL = 60; // The initial TTL for a LSP
     final int LSA_REFRESH_TIME = 30; // The time between sending our own LSP announcements
-    final int STABLE_TIME = 10; // How long we have to be stable before we can calculate the routing table
+    final int STABLE_TIME = 5000; // How long we have to be stable before we can calculate the routing table
+    boolean routeTableRecalcNeeded = false; // Do we need to recalculate the routing table? (set to true every time we get a new LSP)
     LinkedList<LSP> listLSP = new LinkedList<LSP>();
     long timeOfLastLSP=Instant.now().toEpochMilli();  // Last time we received a LSP packet, used to calculate if LSPs are stable
     long stableTime=0; // How long have we been stable? Updated by the TTL expire thread for now, need to move to the watchdog thread for calculating the routing table 
@@ -84,6 +85,7 @@ private void acceptConnection(Socket s) {                           // This code
                         lspdb.distance=distances;
                         dupSeq = true;
                         timeOfLastLSP = Instant.now().toEpochMilli();
+                        routeTableRecalcNeeded = true;
                         continue;
                     } 
                     if ( (lspdb.seq == Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) <= 0) { // If the sequence number is the same and ttl<=0, delete it
@@ -102,6 +104,7 @@ private void acceptConnection(Socket s) {                           // This code
             int ttl = Integer.parseInt(chunks[3]);
             if (ttl >= 0 && dupSeq == false) { 
                 timeOfLastLSP = Instant.now().toEpochMilli();
+                routeTableRecalcNeeded = true;
                 LSP lsp = new LSP(Instant.now().toEpochMilli()-startTime,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
                 listLSP.add(lsp);
             } 
@@ -193,7 +196,7 @@ private void acceptConnection(Socket s) {                           // This code
           public void run() {
             // These 2 lines code keep Stabletime updated and print it out.  This isn't really needed, I just wanted to see it.  This should be moved to the section of code that has to recalculate the routing table.
             stableTime = Instant.now().toEpochMilli() - timeOfLastLSP;
-            System.out.printf("[%d] Stabletime: %d\n",portNumber,stableTime);
+            System.out.printf("[%d] Stabletime: %d routeTableRecalcNeeded: %b\n",portNumber,stableTime,routeTableRecalcNeeded);
             for (LSP lspdb : listLSP) {
                 int ttl = lspdb.ttl;
                 if (ttl == 1) {  // It's going to expire this time around
@@ -261,9 +264,10 @@ private void acceptConnection(Socket s) {                           // This code
                 
                 //Hashtable<Integer,Integer> seqAck = new Hashtable<Integer,Integer>();
                 while (keepRunning) { // Recalculate the routing table if we have been stable for a while
-                    if (stableTime > STABLE_TIME) {
+                    if ( (stableTime > STABLE_TIME) && routeTableRecalcNeeded)  {
                         System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
-                        // KICK OFF THE DIKJSTRA ALGORITHM HERE
+                        // KICK OFF THE DIKJSTRA ALGORITHM HERE\
+                        routeTableRecalcNeeded=false; // We are going to recalculate the routing table, so we don't need to do it again until we get a new LSP
                     }
 
                     float sleepyTime=(float) ((Math.random()*1000)+3000);
