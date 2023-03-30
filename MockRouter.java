@@ -21,7 +21,8 @@ import java.time.*;
  */
 public class MockRouter {
     public final Runnable Listener;
-    public final Runnable Initiator;  
+    public final Runnable Initiator;
+    int portNumber;  
     String[] adjacents;
     boolean keepRunning=true;
     long startTime = Instant.now().toEpochMilli();
@@ -35,9 +36,10 @@ public class MockRouter {
     long timeOfLastLSP=Instant.now().toEpochMilli();  // Last time we received a LSP packet, used to calculate if LSPs are stable
     long stableTime=0; // How long have we been stable? Updated by the TTL expire thread for now, need to move to the watchdog thread for calculating the routing table 
     
-private void serviceDownstream(Socket s) {
+    // Start the background processes
+    ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
+    ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
 
-}
 
 private void acceptConnection(Socket s) {                           // This code is used by the listener thread to accept a connection and handle it
     try { 
@@ -70,7 +72,8 @@ private void acceptConnection(Socket s) {                           // This code
                 adjRouterPorts.add(Integer.parseInt(adjRouterPortDistance[0]));
                 distances.add(Integer.parseInt(adjRouterPortDistance[1]));
             }   
-            for (LSP lspdb : listLSP) {
+            List<LSP> listLSPCopy = new LinkedList<LSP>(listLSP); // Make a copy of the list so we can iterate through it without getting a concurrent modification exception
+            for (LSP lspdb : listLSPCopy) {
             // Find existing LSP for router
                 if (lspdb.senderPort == Integer.parseInt(chunks[1])) {
                     if (lspdb.seq == Integer.parseInt(chunks[2])) { // If the sequence number is the same, igore it
@@ -142,17 +145,18 @@ private void acceptConnection(Socket s) {                           // This code
     
     
     }
-    catch(IOException e) {
-        System.out.println("Error: " + e);
+    catch(Exception ignore) {
+        System.out.printf("[%d] Error1: %s\n",portNumber,ignore);
     }
     try {
         s.close();
-    } catch (IOException e) {
-        System.out.println("Error: " + e);
+    } catch (Exception ignore) {
+        System.out.printf("[%d] Error2: %s\n",portNumber,ignore);
     }
 }
     public MockRouter(int portNumber, String[] adjacents)  { // adjacents is port-distance port-distace port-distace 
         this.adjacents = adjacents;
+        this.portNumber = portNumber;
         //System.out.println("In the construtor");
 
         
@@ -166,15 +170,12 @@ private void acceptConnection(Socket s) {                           // This code
              myAdjRouterPorts.add(Integer.parseInt(myAdjRouterPortDistance[0]));
             myDistances.add(Integer.parseInt(myAdjRouterPortDistance[1]));
          }   
-        // need to do this more then once, its going to age out eventually?
-        //listLSP.add(new LSP(Instant.now().toEpochMilli()-startTime, portNumber, nextSeq++,INITIAL_TTL, myAdjRouterPorts, myDistances));
-        
+       
              
-        ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
         lsaRefresh.scheduleAtFixedRate(new Runnable() {
           @Override
           public void run() {
-            //System.out.printf("LSA Refresh for %d\n",portNumber);
+            //System.out.printf("[%d] LSA Refresh\n",portNumber);
             myLSA.time=Instant.now().toEpochMilli()-startTime;
             myLSA.seq++;
             myLSA.ttl=INITIAL_TTL;
@@ -190,26 +191,31 @@ private void acceptConnection(Socket s) {                           // This code
   
 
 
-        ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
         ttlAger.scheduleAtFixedRate(new Runnable() {
           @Override
           public void run() {
-            // These 2 lines code keep Stabletime updated and print it out.  This isn't really needed, I just wanted to see it.  This should be moved to the section of code that has to recalculate the routing table.
-            stableTime = Instant.now().toEpochMilli() - timeOfLastLSP;
-            System.out.printf("[%d] Stabletime: %d routeTableRecalcNeeded: %b\n",portNumber,stableTime,routeTableRecalcNeeded);
-            for (LSP lspdb : listLSP) {
-                int ttl = lspdb.ttl;
-                if (ttl == 1) {  // It's going to expire this time around
-                    System.out.printf("TTL expired for %d\n",lspdb.senderPort);
-                }
-                if (ttl <= 0) { // It's expired or already expired
-                    // Probably need to populate a flood list per peer unfortunately
-                    listLSP.remove(lspdb);
-                } 
-                else {
-                    lspdb.ttl--;                
-                   // listLSP.set(listLSP.indexOf(lspdb), new LSP(lspdb.time,lspdb.senderPort,lspdb.seq,ttl,lspdb.adjRouterPort,lspdb.distance));
-                }
+            try {
+                // These 2 lines code keep Stabletime updated and print it out.  This isn't really needed, I just wanted to see it.  This should be moved to the section of code that has to recalculate the routing table.
+                stableTime = Instant.now().toEpochMilli() - timeOfLastLSP;
+                //System.out.printf("[%d] Stabletime: %d routeTableRecalcNeeded: %b\n",portNumber,stableTime,routeTableRecalcNeeded);
+                List<LSP> listLSPcopy = new ArrayList<LSP>(listLSP); // Because we are removing items from the list, we need to make a copy of it to iterate over
+                for (LSP lspdb : listLSPcopy) {
+                  int ttl = lspdb.ttl;
+                 if (ttl == 1) {  // It's going to expire this time around
+                     System.out.printf("[%d] TTL expired for %d\n",portNumber,lspdb.senderPort);
+                 }
+                 if (ttl <= 0) { // It's expired or already expired
+                     // Probably need to populate a flood list per peer unfortunately
+                     listLSP.remove(lspdb); // Remove it from the original list
+                 } 
+                 else {
+                     lspdb.ttl--;                
+                 }
+             }
+            } 
+            catch (Exception ignore) {
+                System.out.printf("[%d] Error3: %s\n",portNumber,ignore);
+
             }
           }
         }, 0, 1, TimeUnit.SECONDS);
@@ -221,17 +227,23 @@ private void acceptConnection(Socket s) {                           // This code
             public void run()  { 
                 try {
                      ss = new ServerSocket(portNumber);
+                     ss.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
+
                 }
                 catch (Exception IOException) {
                     System.out.printf("Error in binding port %d\n",portNumber);
                     return;
-                }
+                } 
+               
                 while (keepRunning) {
-                    //System.out.printf("Port %d waiting on accept()\n",portNumber);
                     try {
-                        s = ss.accept();
-                        //acceptConnection(s);
-                        //ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor()
+                        try {
+                            s = ss.accept();
+                        }
+                        catch (SocketTimeoutException ignore) { // We set the timeout, so this is expected
+                            continue;
+                        }
+
                         ExecutorService acceptor = Executors.newSingleThreadExecutor();
                         acceptor.submit(new Runnable() {
                             @Override
@@ -241,13 +253,14 @@ private void acceptConnection(Socket s) {                           // This code
                         });
                     }
                     catch (Exception IOException) {
+                        System.out.printf("[%d] error on accept() - %s\n",portNumber,IOException);
                     }
             
                  }
                 try {
                     ss.close();
                 } catch (Exception IOException) {
-                    System.out.printf("Port %d error on ss.close()\n",portNumber);
+                    System.out.printf("[%d] error on ss.close() - %s\n",portNumber,IOException);
 
                 }
             }
@@ -265,15 +278,16 @@ private void acceptConnection(Socket s) {                           // This code
                 //Hashtable<Integer,Integer> seqAck = new Hashtable<Integer,Integer>();
                 while (keepRunning) { // Recalculate the routing table if we have been stable for a while
                     if ( (stableTime > STABLE_TIME) && routeTableRecalcNeeded)  {
-                        System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
+                        //System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
                         // KICK OFF THE DIKJSTRA ALGORITHM HERE\
                         routeTableRecalcNeeded=false; // We are going to recalculate the routing table, so we don't need to do it again until we get a new LSP
                     }
 
-                    float sleepyTime=(float) ((Math.random()*1000)+3000);
+                    //float sleepyTime=(float) ((Math.random()*1000)+3000);
+                    float sleepyTime=(float) ((Math.random()*1000)+100);
 
                     try { 
-                        //System.out.printf("Client sleeping for %f\n",sleepyTime);
+                        //System.out.printf("[%d] Client sleeping for %f\n",portNumber,sleepyTime);
                         Thread.sleep((long)sleepyTime);
                     } catch (Exception ignore) {};
                     String[] endpoints = adjacents;
@@ -293,7 +307,8 @@ private void acceptConnection(Socket s) {                           // This code
                         try {
                          
                           // loop through lsp list, if there is a lsp, and the seq number is greater than the seqAck then send it
-                          for (LSP lsp : listLSP) {
+                          List<LSP> listLSPcopy = new ArrayList<LSP>(listLSP); // iterate over a copy because concurrency 
+                          for (LSP lsp : listLSPcopy) {
                             // If we dont have a seqAck for this senderPort, then add it
                             if (!sr.seqAck().containsKey(lsp.senderPort))
                                 sr.seqAck().put(lsp.senderPort,-1 );
@@ -303,8 +318,11 @@ private void acceptConnection(Socket s) {                           // This code
                                 continue;
                             }
                             // Send the LSP
-                            System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
+                            //System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
                             Socket s = new Socket("localhost", port);
+                            s.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
+                            s.setSoLinger(true,1); // Probably doesn't help, but we do often close the socket immediately after sending data
+
                             BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
                             PrintWriter pw = new PrintWriter(s.getOutputStream(),false);
                             pw.printf("l %d %d %d", lsp.senderPort,lsp.seq,lsp.ttl);
@@ -317,7 +335,7 @@ private void acceptConnection(Socket s) {                           // This code
                             pw.flush();
                
                             if("ACK".equals(br.readLine())) {
-                                System.out.printf("[%d->%s]  Received ACK for LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
+                                //System.out.printf("[%d->%s]  Received ACK for LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
                                 sr.seqAck().put(lsp.senderPort,lsp.seq);
                             }
                             else {
@@ -329,9 +347,9 @@ private void acceptConnection(Socket s) {                           // This code
                             
                           }
                         } 
-                       catch (Exception IOException) {
-                          // error opening the socket
-                        }
+                       catch (Exception ignore) {
+                            System.out.printf("[%d] Error1: %s\n",portNumber,ignore);
+                    }
                     }           
                 }
 
