@@ -239,18 +239,20 @@ private void acceptConnection(Socket s) {                           // This code
                     try {
                         try {
                             s = ss.accept();
+                            acceptConnection(s);  // BUGGY: If you want concurrency, you need to spawn a thread here, comment out this line and uncomment the ExecutorService code below
+
                         }
                         catch (SocketTimeoutException ignore) { // We set the timeout, so this is expected
                             continue;
                         }
 
-                        ExecutorService acceptor = Executors.newSingleThreadExecutor();
-                        acceptor.submit(new Runnable() {
-                            @Override
-                            public void run() {
-                                acceptConnection(s);
-                            }
-                        });
+                        //ExecutorService acceptor = Executors.newSingleThreadExecutor();  // The code does not handle concurrency very well, so commented this out
+                        //acceptor.submit(new Runnable() {
+                        //    @Override
+                        //    public void run() {
+                        //        acceptConnection(s);
+                        //    }
+                        //});
                     }
                     catch (Exception IOException) {
                         System.out.printf("[%d] error on accept() - %s\n",portNumber,IOException);
