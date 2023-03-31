@@ -9,6 +9,7 @@ import java.util.LinkedList;
 import java.util.HashMap;
 import java.util.concurrent.*;
 
+import javax.swing.text.rtf.RTFEditorKit;
 
 import java.util.*;
 import java.time.*;
@@ -38,6 +39,8 @@ public class MockRouter  {
     // Start the background processes
     ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
     ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
+
+
 
 private void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
     Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] acceptConnection");
@@ -111,6 +114,8 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
         }
     
         if (command.charAt(0) == 'h') {           // Dump all link state messages and routing table *TODO*
+            pw.println("HISTORY");
+            pw.flush();
             for (LSP lsp : listLSP) {
                 pw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time),lsp.senderPort,lsp.seq,lsp.ttl);
                 for (int x=0; x < lsp.adjRouterPort.size(); x++) {
@@ -119,6 +124,19 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 pw.println();
                 pw.flush();
             }
+            pw.println("TABLE");
+            pw.flush();
+            // display all entries in routingTable
+            // copy routingTable to a new list so we can iterate through it without getting a concurrent modification exception
+            Hashtable routingTableCopy = (Hashtable) routingTable.clone();
+            Enumeration<Integer> keys = routingTableCopy.keys();
+            while(keys.hasMoreElements()) {
+                Integer key = keys.nextElement();
+                pw.printf("%d %d\n",key,routingTableCopy.get(key));
+            }
+            pw.println();
+            pw.flush();
+            
     
         }
         if (command.charAt(0) == 's') {           // STOP *DONE?*
@@ -278,15 +296,17 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 
                 while (keepRunning) { // Recalculate the routing table if we have been stable for a while
                     if ( (stableTime > STABLE_TIME) && routeTableRecalcNeeded)  {
-                        //System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
+                        System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
                         // KICK OFF THE DIKJSTRA ALGORITHM HERE\
                         
-                                                boolean[] perm = new boolean[listLSP.size()];
+              
+                        boolean[] perm = new boolean[listLSP.size()];
                         for (LSP lsp : listLSP) {
                             if(lsp.senderPort == portNumber)
                                 routingTable.put(lsp.senderPort, 0);
                             else 
                                 routingTable.put(lsp.senderPort, Integer.MAX_VALUE);
+                           
                         }
                         
                         for(int i = 0; i < listLSP.size(); i++){
@@ -316,7 +336,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                                 }
                             }
                         }
-                        
+                        System.out.printf("[%d] Routing Table update complete\n",portNumber);
                         routeTableRecalcNeeded=false; // We are going to recalculate the routing table, so we don't need to do it again until we get a new LSP
                     }
 
