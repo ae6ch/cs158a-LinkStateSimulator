@@ -38,7 +38,7 @@ public class MockRouter  {
     ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
     ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
 
-private void acceptConnection(Socket s) {                           // This code is used by the listener thread to accept a connection and handle it
+private void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
     Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] acceptConnection");
     try { 
         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
@@ -72,10 +72,10 @@ private void acceptConnection(Socket s) {                           // This code
                 if (lspdb.senderPort == Integer.parseInt(chunks[1])) {
                     if (lspdb.seq == Integer.parseInt(chunks[2])) { // If the sequence number is the same, igore it
                         dupSeq = true;
-                        //continue;
+                        
                     } 
-                    else if ( (lspdb.seq < Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) > 0) { // If the sequence number is newer and ttl>0, update it 
-                        lspdb.time=Instant.now().toEpochMilli()-startTime;
+                    else if (lspdb.seq <= Integer.parseInt(chunks[2])) { // If the sequence number is same or newer update it
+                        lspdb.time=Instant.now().toEpochMilli()-startTime;    
                         lspdb.seq=Integer.parseInt(chunks[2]);
                         lspdb.ttl=Integer.parseInt(chunks[3]);
                         lspdb.adjRouterPort=adjRouterPorts;
@@ -84,9 +84,11 @@ private void acceptConnection(Socket s) {                           // This code
                         timeOfLastLSP = Instant.now().toEpochMilli();
                         routeTableRecalcNeeded = true;
                     } 
-                    else if ( (lspdb.seq == Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) <= 0) { // If the sequence number is the same and ttl<=0, delete it
+                    else if ( (lspdb.seq == Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) <= 0) { // If the sequence number is the same and ttl=0, delete it from table
                         dupSeq = true;
-                        listLSP.remove(listLSP.indexOf(lspdb));
+                        listLSP.remove(listLSP.indexOf(lspdb)); 
+                        routeTableRecalcNeeded = true;
+ 
                     } 
                     else if (lspdb.seq > Integer.parseInt(chunks[2])) {   // If the sequence number is older, ignore it
                         dupSeq = true;
@@ -94,7 +96,8 @@ private void acceptConnection(Socket s) {                           // This code
                 }
             }
             int ttl = Integer.parseInt(chunks[3]);
-            if (ttl >= 0 && dupSeq == false) { 
+            if (ttl > 0 && dupSeq == false) {  
+            //if (dupSeq==false) { 
                 timeOfLastLSP = Instant.now().toEpochMilli();
                 routeTableRecalcNeeded = true;
                 LSP lsp = new LSP(Instant.now().toEpochMilli()-startTime,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
@@ -142,16 +145,18 @@ private void acceptConnection(Socket s) {                           // This code
         this.adjacents = adjacents;
         this.portNumber = portNumber;
         
+        // Initialize the LSP for this router, we will add to the myAdjRouterPorts and myDistances as sockets come up
         ArrayList<Integer> myAdjRouterPorts = new ArrayList<Integer>(100);
         ArrayList<Integer> myDistances = new ArrayList<Integer>(100);
         LSP myLSA = new LSP(Instant.now().toEpochMilli()-startTime, portNumber, INITIAL_SEQ,INITIAL_TTL, myAdjRouterPorts, myDistances);
 
+
         // Insert a LSP for all of our current links at start up
-        for (int x=0; x < adjacents.length; x++) {
-            String[] myAdjRouterPortDistance = adjacents[x].split("-");
-             myAdjRouterPorts.add(Integer.parseInt(myAdjRouterPortDistance[0]));
-            myDistances.add(Integer.parseInt(myAdjRouterPortDistance[1]));
-         }   
+        //for (int x=0; x < adjacents.length; x++) {
+        //    String[] myAdjRouterPortDistance = adjacents[x].split("-");
+        //    myAdjRouterPorts.add(Integer.parseInt(myAdjRouterPortDistance[0]));
+        //   myDistances.add(Integer.parseInt(myAdjRouterPortDistance[1]));
+         //  }   
        
              
         lsaRefresh.scheduleAtFixedRate(new Runnable() {
@@ -159,7 +164,7 @@ private void acceptConnection(Socket s) {                           // This code
           public void run() {
             Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] lsaRefresh");
 
-            System.out.printf("[%d] LSA Refresh\n",portNumber);
+            //System.out.printf("[%d] LSA Refresh\n",portNumber);
             myLSA.time=Instant.now().toEpochMilli()-startTime;
             myLSA.seq++;
             myLSA.ttl=INITIAL_TTL;
@@ -193,9 +198,9 @@ private void acceptConnection(Socket s) {                           // This code
 
                  }
                  if (ttl <= 0) { // It's expired or already expired
-                     // Probably need to populate a flood list per peer unfortunately
-                    listLSP.remove(lspdb); // Remove it from the original list
-                    routeTableRecalcNeeded = true;
+                    //We don't do anything here.  The 0 TTL LSPs site in the LSP list, the initiator thread will remove them after it refloods.
+                    //listLSP.remove(lspdb); // Remove it from the original list
+                    //routeTableRecalcNeeded = true;
                  } 
                  else {
                      lspdb.ttl--;                
@@ -305,7 +310,8 @@ private void acceptConnection(Socket s) {                           // This code
                             if (!sr.seqAck().containsKey(lsp.senderPort))
                                 sr.seqAck().put(lsp.senderPort,-1 );
                           
-                            if (sr.seqAck().get(lsp.senderPort) >= lsp.seq) {
+                            if ((sr.seqAck().get(lsp.senderPort) >= lsp.seq) && (lsp.ttl > 0)) { // We've already send this LSP and its not expired
+                                                                                                 // if lsp.ttl >0 is how we reflood a 0 TTL LSP
                                 //System.out.printf("[%d->%s] Skipping LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
                                 continue;
                             }
@@ -314,6 +320,14 @@ private void acceptConnection(Socket s) {                           // This code
                             Socket s = new Socket("localhost", port);
                             s.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
                             s.setSoLinger(true,1); // Probably doesn't help, but we do often close the socket immediately after sending data
+                            
+                            // We are connectd to the remote router, make sure we are advertising that we can connect to it
+                            if (!myLSA.adjRouterPort.contains(port)) {
+                                myLSA.adjRouterPort.add(port);
+                                myLSA.distance.add(distance);
+                            }
+                            
+                        
 
                             BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
                             PrintWriter pw = new PrintWriter(s.getOutputStream(),false);
@@ -337,11 +351,34 @@ private void acceptConnection(Socket s) {                           // This code
                             
                           }
                         } 
-                       catch (Exception ignore) {
-                            System.out.printf("[%d] Error1: %s\n",portNumber,ignore);
-                    }
+                        catch (ConnectException ce) {
+                            // Socket is closed/can't be opened.  Remove from list of adjacents
+                            //System.out.printf("[%d] Error1: %s\n",portNumber,e);
+                            List<Integer> listAdjacentsCopy = new ArrayList<Integer>(myLSA.adjRouterPort); // iterate over a copy because concurrency
+                            for (Integer a : listAdjacentsCopy) {
+                                if (a == port) {
+                                    System.out.printf("[%d] Removing %d from adjacents\n",portNumber,port);
+                                    myLSA.distance.remove(myLSA.adjRouterPort.indexOf(a));
+                                    myLSA.adjRouterPort.remove(myLSA.adjRouterPort.indexOf(a));
+
+                                }
+                            }
+                        }
+                        catch (Exception ignore) {
+                            System.out.printf("[%d] Error4: %s\n",portNumber,ignore);
+                        } 
                     }           
+                
+                    // We've flooded all the expired LSPs at this point, Delete any LSP that has a TTL of 0
+                    List<LSP> listLSPcopy = new ArrayList<LSP>(listLSP); // iterate over a copy because concurrency
+                    for (LSP lsp : listLSPcopy) {
+                        if (lsp.ttl == 0) {
+                            System.out.printf("[%d] Deleting LSP after flood\n",portNumber);                     
+                            listLSP.remove(lsp);
+                        }
+                    }
                 }
+
 
             }
         };

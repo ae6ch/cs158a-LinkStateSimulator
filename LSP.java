@@ -1,5 +1,4 @@
 import java.util.ArrayList;
-//public record LSP(long time, int senderPort, int seq, int ttl, ArrayList<Integer> adjRouterPort, ArrayList<Integer> distance) { }
 public class LSP {
     public long time;
     public int senderPort;
