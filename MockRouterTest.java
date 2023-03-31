@@ -1,9 +1,9 @@
 public class MockRouterTest {
     public static void main(String [] args) {
-        MockRouter mr1 = new MockRouter(9990,"9991-1".split(" "));
-        MockRouter mr2 = new MockRouter(9991,"9990-1 9992-1".split(" "));
-        MockRouter mr3 = new MockRouter(9992,"9991-1".split(" "));
-       // MockRouter mr4 = new MockRouter(9993,"9990-1 9996-4 9991-10".split(" "));
+        MockRouter mr1 = new MockRouter(9990,"9991-1 9993-1".split(" "));
+        MockRouter mr2 = new MockRouter(9991,"9990-1 9992-5".split(" "));
+        MockRouter mr3 = new MockRouter(9992,"9991-5 9993-1".split(" "));
+        MockRouter mr4 = new MockRouter(9993,"9992-1 9990-1".split(" "));
        // MockRouter mr5 = new MockRouter(9994,"9995-3 9991-12".split(" "));
        // MockRouter mr6 = new MockRouter(9995,"9996-7 9994-3".split(" "));
        // MockRouter mr7 = new MockRouter(9996,"9990-1 9993-4 9995-7".split(" "));
@@ -16,7 +16,7 @@ public class MockRouterTest {
         new Thread(mr1.Listener).start();
         new Thread(mr2.Listener).start();
         new Thread(mr3.Listener).start(); 
-       //new Thread(mr4.Listener).start();
+        new Thread(mr4.Listener).start();
         //new Thread(mr5.Listener).start();
         //new Thread(mr6.Listener).start();
         //new Thread(mr7.Listener).start();
@@ -31,7 +31,7 @@ public class MockRouterTest {
         new Thread(mr1.Initiator).start();
         new Thread(mr2.Initiator).start();
         new Thread(mr3.Initiator).start();
-        //new Thread(mr4.Initiator).start();
+        new Thread(mr4.Initiator).start();
         //new Thread(mr5.Initiator).start();
         //new Thread(mr6.Initiator).start();
         //new Thread(mr7.Initiator).start();

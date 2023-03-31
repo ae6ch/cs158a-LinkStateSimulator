@@ -297,15 +297,16 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 while (keepRunning) { // Recalculate the routing table if we have been stable for a while
                     if ( (stableTime > STABLE_TIME) && routeTableRecalcNeeded)  {
                         System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
-                        // KICK OFF THE DIKJSTRA ALGORITHM HERE\
+                        // KICK OFF THE DIKJSTRA ALGORITHM HERE
                         
-              
+                        Hashtable newRoutingTable = new Hashtable();
                         boolean[] perm = new boolean[listLSP.size()];
-                        for (LSP lsp : listLSP) {
+                        List<LSP> listLSPCopy = new ArrayList<LSP>(listLSP);
+                        for (LSP lsp : listLSPCopy) {
                             if(lsp.senderPort == portNumber)
-                                routingTable.put(lsp.senderPort, 0);
+                                newRoutingTable.put(lsp.senderPort, 0);
                             else 
-                                routingTable.put(lsp.senderPort, Integer.MAX_VALUE);
+                                newRoutingTable.put(lsp.senderPort, Integer.MAX_VALUE);
                            
                         }
                         
@@ -316,7 +317,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                             for (int j = 0; j < listLSP.size(); j++) {
                                 LSP lsp = listLSP.get(j);
                             if(!perm[j]){
-                                int n = (Integer) routingTable.get(lsp.senderPort);
+                                int n = (Integer) newRoutingTable.get(lsp.senderPort);
                                 if (n < min){
                                     min = n;
                                     active = lsp;
@@ -326,18 +327,19 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                         }
                             if(index > -1){
                                 perm[index] = true;
-                                int myDist = (Integer) routingTable.get(active.senderPort);
+                                int myDist = (Integer) newRoutingTable.get(active.senderPort);
                                 for (int j = 0; j < active.adjRouterPort.size(); j++){
                                     int portDist = myDist + active.distance.get(j);
-                                    int current = (Integer) routingTable.get(active.adjRouterPort.get(j));
+                                    int current = (Integer) newRoutingTable.get(active.adjRouterPort.get(j));
                                     if(portDist < current){
-                                        routingTable.put(active.adjRouterPort.get(j), portDist);
+                                        newRoutingTable.put(active.adjRouterPort.get(j), portDist);
                                     }
                                 }
                             }
                         }
                         System.out.printf("[%d] Routing Table update complete\n",portNumber);
-                        routeTableRecalcNeeded=false; // We are going to recalculate the routing table, so we don't need to do it again until we get a new LSP
+                        routingTable = newRoutingTable;
+                        routeTableRecalcNeeded=false; //we don't need to do it again until we get a new LSP
                     }
 
                     float sleepyTime=(float) ((Math.random()*1000)+3000);
