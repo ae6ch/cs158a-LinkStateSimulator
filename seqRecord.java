@@ -1,2 +1,2 @@
-import java.util.Hashtable;
-public record seqRecord(int ep, Hashtable<Integer,Integer> seqAck) {}
+import java.util.HashMap;
+public record seqRecord(int ep, HashMap<Integer,Integer> seqAck) {}

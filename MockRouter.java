@@ -2,13 +2,11 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-//package linkstate;
 
 import java.net.*;
-import java.util.regex.Pattern;
 import java.io.*;
 import java.util.LinkedList;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.concurrent.*;
 
 
@@ -19,7 +17,7 @@ import java.time.*;
  *
  * @author zayd
  */
-public class MockRouter {
+public class MockRouter  {
     public final Runnable Listener;
     public final Runnable Initiator;
     int portNumber;  
@@ -40,8 +38,8 @@ public class MockRouter {
     ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
     ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
 
-
 private void acceptConnection(Socket s) {                           // This code is used by the listener thread to accept a connection and handle it
+    Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] acceptConnection");
     try { 
         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
         PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
@@ -53,11 +51,9 @@ private void acceptConnection(Socket s) {                           // This code
          * (c) s followed by a newline (stop) to which it responds with STOPPING and a newline and then it stops its thread. 
         */
         if (command.charAt(0) == 'k') {  // Keepalive.  Just just a do-nothing to verify the connect/accept/read/write was working, sends a k back.
-            //System.out.printf("[%d] %s:%d - RX Keepalive\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());      
             pw.println("k");
             pw.flush();  
         }    
-        // l sender_port seq_number time_to_live adjacent_router_1_port-distance_1 ... adjacent_router_n_port-distance_n
         // Stores the links-distance pairs into 2 arrays, and then puts those in a record class called LSP, those LSPs are then put in a list called listLSP;
         if (command.charAt(0) == 'l') {  // Received a link state message
             String chunks[] = command.split(" ");
@@ -67,8 +63,6 @@ private void acceptConnection(Socket s) {                           // This code
     
             for (int x=4; x < chunks.length; x++) {
                 String[] adjRouterPortDistance = chunks[x].split("-");
-               // System.out.printf("%s %s %s %s\n",chunks[0],chunks[1],chunks[2],chunks[3]);
-               // System.out.printf("%s - %s\n",adjRouterPortDistance[0],adjRouterPortDistance[1]);
                 adjRouterPorts.add(Integer.parseInt(adjRouterPortDistance[0]));
                 distances.add(Integer.parseInt(adjRouterPortDistance[1]));
             }   
@@ -78,9 +72,9 @@ private void acceptConnection(Socket s) {                           // This code
                 if (lspdb.senderPort == Integer.parseInt(chunks[1])) {
                     if (lspdb.seq == Integer.parseInt(chunks[2])) { // If the sequence number is the same, igore it
                         dupSeq = true;
-                        continue;
+                        //continue;
                     } 
-                    if ( (lspdb.seq < Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) > 0) { // If the sequence number is newer and ttl>0, update it 
+                    else if ( (lspdb.seq < Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) > 0) { // If the sequence number is newer and ttl>0, update it 
                         lspdb.time=Instant.now().toEpochMilli()-startTime;
                         lspdb.seq=Integer.parseInt(chunks[2]);
                         lspdb.ttl=Integer.parseInt(chunks[3]);
@@ -89,21 +83,16 @@ private void acceptConnection(Socket s) {                           // This code
                         dupSeq = true;
                         timeOfLastLSP = Instant.now().toEpochMilli();
                         routeTableRecalcNeeded = true;
-                        continue;
                     } 
-                    if ( (lspdb.seq == Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) <= 0) { // If the sequence number is the same and ttl<=0, delete it
+                    else if ( (lspdb.seq == Integer.parseInt(chunks[2])) && Integer.parseInt(chunks[3]) <= 0) { // If the sequence number is the same and ttl<=0, delete it
                         dupSeq = true;
                         listLSP.remove(listLSP.indexOf(lspdb));
-                        continue;
                     } 
-                    if (lspdb.seq > Integer.parseInt(chunks[2])) {   // If the sequence number is older, ignore it
+                    else if (lspdb.seq > Integer.parseInt(chunks[2])) {   // If the sequence number is older, ignore it
                         dupSeq = true;
-                        continue;
                     }
                 }
             }
-    
-    
             int ttl = Integer.parseInt(chunks[3]);
             if (ttl >= 0 && dupSeq == false) { 
                 timeOfLastLSP = Instant.now().toEpochMilli();
@@ -111,21 +100,16 @@ private void acceptConnection(Socket s) {                           // This code
                 LSP lsp = new LSP(Instant.now().toEpochMilli()-startTime,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
                 listLSP.add(lsp);
             } 
-            else { 
-    
-           
-            }
+            
             pw.println("ACK");
             pw.flush();
     
         }
     
         if (command.charAt(0) == 'h') {           // Dump all link state messages and routing table *TODO*
-            //System.out.printf("Port %d:%s:%d - RX HISTORY\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());  
             for (LSP lsp : listLSP) {
                 pw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time),lsp.senderPort,lsp.seq,lsp.ttl);
                 for (int x=0; x < lsp.adjRouterPort.size(); x++) {
-                    //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
                     pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
                 }
                 pw.println();
@@ -157,8 +141,6 @@ private void acceptConnection(Socket s) {                           // This code
     public MockRouter(int portNumber, String[] adjacents)  { // adjacents is port-distance port-distace port-distace 
         this.adjacents = adjacents;
         this.portNumber = portNumber;
-        //System.out.println("In the construtor");
-
         
         ArrayList<Integer> myAdjRouterPorts = new ArrayList<Integer>(100);
         ArrayList<Integer> myDistances = new ArrayList<Integer>(100);
@@ -175,7 +157,9 @@ private void acceptConnection(Socket s) {                           // This code
         lsaRefresh.scheduleAtFixedRate(new Runnable() {
           @Override
           public void run() {
-            //System.out.printf("[%d] LSA Refresh\n",portNumber);
+            Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] lsaRefresh");
+
+            System.out.printf("[%d] LSA Refresh\n",portNumber);
             myLSA.time=Instant.now().toEpochMilli()-startTime;
             myLSA.seq++;
             myLSA.ttl=INITIAL_TTL;
@@ -193,7 +177,9 @@ private void acceptConnection(Socket s) {                           // This code
 
         ttlAger.scheduleAtFixedRate(new Runnable() {
           @Override
+          
           public void run() {
+            Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] TTL Ager");
             try {
                 // These 2 lines code keep Stabletime updated and print it out.  This isn't really needed, I just wanted to see it.  This should be moved to the section of code that has to recalculate the routing table.
                 stableTime = Instant.now().toEpochMilli() - timeOfLastLSP;
@@ -202,11 +188,14 @@ private void acceptConnection(Socket s) {                           // This code
                 for (LSP lspdb : listLSPcopy) {
                   int ttl = lspdb.ttl;
                  if (ttl == 1) {  // It's going to expire this time around
-                     System.out.printf("[%d] TTL expired for %d\n",portNumber,lspdb.senderPort);
+                    System.out.printf("[%d] TTL expired for %d\n",portNumber,lspdb.senderPort);
+                    routeTableRecalcNeeded = true;
+
                  }
                  if (ttl <= 0) { // It's expired or already expired
                      // Probably need to populate a flood list per peer unfortunately
-                     listLSP.remove(lspdb); // Remove it from the original list
+                    listLSP.remove(lspdb); // Remove it from the original list
+                    routeTableRecalcNeeded = true;
                  } 
                  else {
                      lspdb.ttl--;                
@@ -225,6 +214,8 @@ private void acceptConnection(Socket s) {                           // This code
             ServerSocket ss;
             Socket s;
             public void run()  { 
+                Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] Listener");
+
                 try {
                      ss = new ServerSocket(portNumber);
                      ss.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
@@ -242,17 +233,17 @@ private void acceptConnection(Socket s) {                           // This code
                             acceptConnection(s);  // BUGGY: If you want concurrency, you need to spawn a thread here, comment out this line and uncomment the ExecutorService code below
 
                         }
-                        catch (SocketTimeoutException ignore) { // We set the timeout, so this is expected
-                            continue;
-                        }
+                        catch (SocketTimeoutException ignore) {} // We set a timeout, so this is expected
 
-                        //ExecutorService acceptor = Executors.newSingleThreadExecutor();  // The code does not handle concurrency very well, so commented this out
-                        //acceptor.submit(new Runnable() {
-                        //    @Override
-                        //    public void run() {
-                        //        acceptConnection(s);
-                        //    }
-                        //});
+                        /* 
+                        ExecutorService acceptor = Executors.newSingleThreadExecutor();  // The code does not handle concurrency very well, so commented this out
+                        acceptor.submit(new Runnable() {
+                            @Override
+                            public void run() {
+                                acceptConnection(s);
+                            }
+                        });
+                        */
                     }
                     catch (Exception IOException) {
                         System.out.printf("[%d] error on accept() - %s\n",portNumber,IOException);
@@ -274,10 +265,11 @@ private void acceptConnection(Socket s) {                           // This code
                 int port;
                 int distance;
                 
-                Hashtable<Integer,seqRecord> hashseqRecord = new Hashtable<>();
+                Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] Initiator");
+
+                HashMap<Integer,seqRecord> hashseqRecord = new HashMap<>();
 
                 
-                //Hashtable<Integer,Integer> seqAck = new Hashtable<Integer,Integer>();
                 while (keepRunning) { // Recalculate the routing table if we have been stable for a while
                     if ( (stableTime > STABLE_TIME) && routeTableRecalcNeeded)  {
                         //System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
@@ -285,8 +277,7 @@ private void acceptConnection(Socket s) {                           // This code
                         routeTableRecalcNeeded=false; // We are going to recalculate the routing table, so we don't need to do it again until we get a new LSP
                     }
 
-                    //float sleepyTime=(float) ((Math.random()*1000)+3000);
-                    float sleepyTime=(float) ((Math.random()*1000)+100);
+                    float sleepyTime=(float) ((Math.random()*1000)+3000);
 
                     try { 
                         //System.out.printf("[%d] Client sleeping for %f\n",portNumber,sleepyTime);
@@ -295,12 +286,11 @@ private void acceptConnection(Socket s) {                           // This code
                     String[] endpoints = adjacents;
                     for (String e: endpoints) {     // Main outgoing connection loop here
                         String ep[] = e.split("-");
-                        //System.out.printf("[%d] connecting to Thread %s and Distance %s\n", portNumber,ep[0],ep[1]);
                         port = Integer.parseInt(ep[0]);
                         distance = Integer.parseInt(ep[1]);
                         // Find seqRecord for this ep, if it doesnt exist, insert a new one with a empty seqAck table
                         if (!hashseqRecord.containsKey(Integer.parseInt(ep[0]))) {
-                            Hashtable<Integer,Integer> sa = new Hashtable<Integer,Integer>();
+                            HashMap<Integer,Integer> sa = new HashMap<Integer,Integer>();
                             seqRecord sr = new seqRecord(Integer.parseInt(ep[0]),sa);
                             hashseqRecord.put(Integer.parseInt(ep[0]),sr);
                         }
@@ -329,7 +319,6 @@ private void acceptConnection(Socket s) {                           // This code
                             PrintWriter pw = new PrintWriter(s.getOutputStream(),false);
                             pw.printf("l %d %d %d", lsp.senderPort,lsp.seq,lsp.ttl);
                             for (int x=0; x < lsp.adjRouterPort.size(); x++) {
-                                //pw.printf(" %d-%d",lsp.adjRouterPort()[x],lsp.distance()[x]);
                                 pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
                                 
                             }
@@ -345,7 +334,6 @@ private void acceptConnection(Socket s) {                           // This code
                             }
                            
                             s.close();
-                            continue; 
                             
                           }
                         } 
