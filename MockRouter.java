@@ -39,7 +39,18 @@ public class MockRouter  {
     // Start the background processes
     ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
     ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
-
+private  void sendRefresh(LSP myLSA){
+        myLSA.time=Instant.now().toEpochMilli()-startTime;
+        myLSA.seq++;
+        myLSA.ttl=INITIAL_TTL;
+    
+        if(listLSP.contains(myLSA)) { 
+            listLSP.set(listLSP.indexOf(myLSA), myLSA);
+        }
+        else {
+            listLSP.add(myLSA);
+        }
+    }
 
 
 private void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
@@ -184,16 +195,8 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
             Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] lsaRefresh");
 
             //System.out.printf("[%d] LSA Refresh\n",portNumber);
-            myLSA.time=Instant.now().toEpochMilli()-startTime;
-            myLSA.seq++;
-            myLSA.ttl=INITIAL_TTL;
-
-            if(listLSP.contains(myLSA)) { 
-                listLSP.set(listLSP.indexOf(myLSA), myLSA);
-            }
-            else {
-                listLSP.add(myLSA);
-            }
+            sendRefresh(myLSA);
+            
           }
         }, 0, LSA_REFRESH_TIME, TimeUnit.SECONDS);
   
@@ -385,6 +388,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                             if (!myLSA.adjRouterPort.contains(port)) {
                                 myLSA.adjRouterPort.add(port);
                                 myLSA.distance.add(distance);
+                                sendRefresh(myLSA); // Send a refresh LSP to all neighbors
                             }
                             
                         
@@ -420,6 +424,8 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                                     System.out.printf("[%d] Removing %d from adjacents\n",portNumber,port);
                                     myLSA.distance.remove(myLSA.adjRouterPort.indexOf(a));
                                     myLSA.adjRouterPort.remove(myLSA.adjRouterPort.indexOf(a));
+                                    sendRefresh(myLSA); // Send a refresh LSP to all neighbors
+
 
                                 }
                             }
