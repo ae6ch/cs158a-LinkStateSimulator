@@ -66,6 +66,9 @@ public class LinkStateSimulator {
             if(cm[0] == "s"){
                out.writeChars("s\n");
             }
+        
+            socket.close();
+                
             in = input.next();
         }
     }
