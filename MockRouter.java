@@ -30,6 +30,7 @@ public class MockRouter  {
     final int LSA_REFRESH_TIME = 30; // The time between sending our own LSP announcements
     final int STABLE_TIME = 5000; // How long we have to be stable before we can calculate the routing table
     boolean routeTableRecalcNeeded = false; // Do we need to recalculate the routing table? (set to true every time we get a new LSP)
+    Hashtable routingTable = new Hashtable();
     LinkedList<LSP> listLSP = new LinkedList<LSP>();
     long timeOfLastLSP=Instant.now().toEpochMilli();  // Last time we received a LSP packet, used to calculate if LSPs are stable
     long stableTime=0; // How long have we been stable? Updated by the TTL expire thread for now, need to move to the watchdog thread for calculating the routing table 
@@ -279,6 +280,43 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                     if ( (stableTime > STABLE_TIME) && routeTableRecalcNeeded)  {
                         //System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
                         // KICK OFF THE DIKJSTRA ALGORITHM HERE\
+                        
+                                                boolean[] perm = new boolean[listLSP.size()];
+                        for (LSP lsp : listLSP) {
+                            if(lsp.senderPort == portNumber)
+                                routingTable.put(lsp.senderPort, 0);
+                            else 
+                                routingTable.put(lsp.senderPort, Integer.MAX_VALUE);
+                        }
+                        
+                        for(int i = 0; i < listLSP.size(); i++){
+                            LSP active = new LSP(0,0,0,0, new ArrayList<Integer>(), new ArrayList<Integer>());
+                            int min = Integer.MAX_VALUE;
+                            int index = -1;
+                            for (int j = 0; j < listLSP.size(); j++) {
+                                LSP lsp = listLSP.get(j);
+                            if(!perm[j]){
+                                int n = (Integer) routingTable.get(lsp.senderPort);
+                                if (n < min){
+                                    min = n;
+                                    active = lsp;
+                                    index = j;
+                                }
+                            }
+                        }
+                            if(index > -1){
+                                perm[index] = true;
+                                int myDist = (Integer) routingTable.get(active.senderPort);
+                                for (int j = 0; j < active.adjRouterPort.size(); j++){
+                                    int portDist = myDist + active.distance.get(j);
+                                    int current = (Integer) routingTable.get(active.adjRouterPort.get(j));
+                                    if(portDist < current){
+                                        routingTable.put(active.adjRouterPort.get(j), portDist);
+                                    }
+                                }
+                            }
+                        }
+                        
                         routeTableRecalcNeeded=false; // We are going to recalculate the routing table, so we don't need to do it again until we get a new LSP
                     }
 
