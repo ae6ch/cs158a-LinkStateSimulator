@@ -48,8 +48,6 @@ public class routingTable {
                 distance = "\u221e";
                 nexthop = "*BLACKHOLE*";
             }
-
-
                 ps.printf("%10s %10s %10s\n",router,distance,nexthop);
         });
 
@@ -75,11 +73,6 @@ public class routingTable {
             for (int j = 0; j < listLSP.size(); j++) {
                 LSP lsp = listLSP.get(j);
                 if(!perm[j]) {
-                   
-                    System.out.println("lsp.senderPort: " + lsp.senderPort);
-                    //System.out.println("routeTable.get(lsp.senderPort) " + routeTable.get(lsp.senderPort));
-
-                    //System.out.println("routeTable.get(lsp.senderPort).getDistance(): " + routeTable.get(lsp.senderPort).getDistance());
                     routeTableEntry rte = routeTable.get(lsp.senderPort);
                     int n = rte.getDistance();
                     if (n < min) {
@@ -96,11 +89,6 @@ public class routingTable {
                     int portDist = myDist + active.distance.get(j);
                     int current = (Integer) routeTable.get(active.adjRouterPort.get(j)).getDistance();
                     if(portDist < current){
-                        //routeTable.add(new routeTableEntry(portNumber, portDist, active.senderPort));
-
-                        //routeTable.get(active.adjRouterPort.get(j)).setDistance(portDist);
-                        //outeTable.get(active.adjRouterPort.get(j)).setNexthop(active.senderPort);
-                        // add or update the entry in the routing table
                         routeTableEntry entry = new routeTableEntry(active.adjRouterPort.get(j), portDist, active.senderPort);
                         routeTable.put(active.adjRouterPort.get(j),entry);
                         
