@@ -43,10 +43,10 @@ public class routingTable {
             String distance = Integer.toString(entry.getDistance());
             String nexthop = Integer.toString(entry.getNexthop());
             if (entry.getNexthop() == -1)
-                nexthop = "SELF";
+                nexthop = "" + portNumber;
             if (entry.getDistance() == Integer.MAX_VALUE) {
                 distance = "\u221e";
-                nexthop = "*BLACKHOLE*";
+                nexthop = "NULL";
             }
                 ps.printf("%10s %10s %10s\n",router,distance,nexthop);
         });
