@@ -148,7 +148,11 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
             pw.flush();
             s.close();
             keepRunning=false;
+            ttlAger.shutdown();
+            lsaRefresh.shutdown();
             Thread.currentThread().interrupt();
+           
+
         }
     
     
