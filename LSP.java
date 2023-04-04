@@ -1,3 +1,5 @@
+//Zayd Kudaimi 015637245 Shinhyung Lee 014175837 Steve Rubin 017439448
+
 import java.util.ArrayList;
 public class LSP {
     public long time;

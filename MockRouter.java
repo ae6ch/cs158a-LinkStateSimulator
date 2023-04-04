@@ -1,7 +1,5 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
+//Zayd Kudaimi 015637245 Shinhyung Lee 014175837 Steve Rubin 017439448
+
 
 import java.net.*;
 import java.io.*;
@@ -173,12 +171,12 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
     
     }
     catch(Exception ignore) {
-        System.out.printf("[%d] Error1: %s\n",portNumber,ignore);
+        //System.out.printf("[%d] Error1: %s\n",portNumber,ignore);
     }
     try {
         s.close();
     } catch (Exception ignore) {
-        System.out.printf("[%d] Error2: %s\n",portNumber,ignore);
+        //System.out.printf("[%d] Error2: %s\n",portNumber,ignore);
     }
 }
     public MockRouter(int portNumber, String[] adjacents)  { // adjacents is port-distance port-distace port-distace 
@@ -226,7 +224,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 for (LSP lspdb : listLSPcopy) {
                   int ttl = lspdb.ttl;
                  if (ttl == 1) {  // It's going to expire this time around
-                    System.out.printf("[%d] TTL expired for %d\n",portNumber,lspdb.senderPort);
+                    //System.out.printf("[%d] TTL expired for %d\n",portNumber,lspdb.senderPort);
                     routeTableRecalcNeeded = true;
 
                  }
@@ -241,7 +239,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
              }
             } 
             catch (Exception ignore) {
-                System.out.printf("[%d] Error3: %s\n",portNumber,ignore);
+                //System.out.printf("[%d] Error3: %s\n",portNumber,ignore);
 
             }
           }
@@ -310,12 +308,12 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 
                 while (keepRunning) { // Recalculate the routing table if we have been stable for a while
                     if ( (stableTime > STABLE_TIME) && routeTableRecalcNeeded)  {
-                        System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
+                        //System.out.printf("[%d] STABLE TIME EXCEEDED, RECALCULATING ROUTING TABLE\n",portNumber);
                         // KICK OFF THE DIKJSTRA ALGORITHM HERE
                         routeTable = new routingTable(listLSP, portNumber);
                         routeTable.calculateTable();
                         
-                        System.out.printf("[%d] Routing Table update complete\n",portNumber);
+                        //System.out.printf("[%d] Routing Table update complete\n",portNumber);
                         routeTableRecalcNeeded=false; //we don't need to do it again until we get a new LSP
                     }
 
@@ -382,7 +380,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                                 sr.seqAck().put(lsp.senderPort,lsp.seq);
                             }
                             else {
-                                System.out.printf("[%d->%s]  No ACK for LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
+                                //System.out.printf("[%d->%s]  No ACK for LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
                             }
                            
                             s.close();
@@ -395,7 +393,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                             List<Integer> listAdjacentsCopy = new ArrayList<Integer>(myLSA.adjRouterPort); // iterate over a copy because concurrency
                             for (Integer a : listAdjacentsCopy) {
                                 if (a == port) {
-                                    System.out.printf("[%d] Removing %d from adjacents\n",portNumber,port);
+                                    //System.out.printf("[%d] Removing %d from adjacents\n",portNumber,port);
                                     myLSA.distance.remove(myLSA.adjRouterPort.indexOf(a));
                                     myLSA.adjRouterPort.remove(myLSA.adjRouterPort.indexOf(a));
                                     sendRefresh(myLSA); // Send a refresh LSP to all neighbors
@@ -405,7 +403,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                             }
                         }
                         catch (Exception ignore) {
-                            System.out.printf("[%d] Error4: %s\n",portNumber,ignore);
+                            //System.out.printf("[%d] Error4: %s\n",portNumber,ignore);
                         } 
                     }           
                 
@@ -413,7 +411,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                     List<LSP> listLSPcopy = new ArrayList<LSP>(listLSP); // iterate over a copy because concurrency
                     for (LSP lsp : listLSPcopy) {
                         if (lsp.ttl == 0) {
-                            System.out.printf("[%d] Deleting LSP after flood\n",portNumber);                     
+                            //System.out.printf("[%d] Deleting LSP after flood\n",portNumber);                     
                             listLSP.remove(lsp);
                         }
                     }
