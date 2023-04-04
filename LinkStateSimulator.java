@@ -1,31 +1,19 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
- */
-//package linkstate;
+//Zayd Kudaimi 015637245 Shinhyung Lee 014175837 Steve Rubin 017439448
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.io.PrintWriter;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
-/**
- *
- * @author zayd
- */
 public class LinkStateSimulator {
 
-    /**
-     * @param args the command line arguments
-     */
     public static void main(String[] args) throws FileNotFoundException, IOException {
-        // TODO code application logic here
         ArrayList routers = new ArrayList<MockRouter>();
         File topology = new File(args[0]);
         FileReader f = new FileReader(topology);
@@ -52,27 +40,37 @@ public class LinkStateSimulator {
         System.out.println("Initialization complete. Ready to accept commands.");
         
         Scanner input = new Scanner(System.in);
-        String in = input.next();
-        while(in != "e"){
+        while(input.hasNext()) {
+            String in = input.nextLine();
+
             String[] cm = in.split(" ");
-            Socket socket = new Socket("localhost", Integer.parseInt(cm[1]));
-            DataInputStream i = new DataInputStream(socket.getInputStream());
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-            
-            if(cm[0] == "h"){
-               out.writeChars("h\n");
-               System.out.println(new String(i.readAllBytes()));
-            }
-            if(cm[0] == "s"){
-               out.writeChars("s\n");
-            }
-        
-            socket.close();
-                
-            in = input.next();
+            switch (cm[0]) {
+                case "e": {
+                    System.out.println("Goodbye!");
+                    System.exit(0);
+                }
+                case "s":
+                case "h":
+                    sendCommand("localhost",Integer.parseInt(cm[1]),cm[0]);
+                    break;
+            }  
         }
     }
-    
+    private static void sendCommand(String host, int port, String command)  {
+        Socket socket;
+        try {
+            socket = new Socket(host, port);
+            BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream())); 
+            PrintWriter out = new PrintWriter(socket.getOutputStream());
+            out.println(command);
+            out.flush();
+            String buf;
+            while((buf=br.readLine()) != null)
+                System.out.println(buf);
+            socket.close();
+        } catch (Exception e) {
+            System.out.println("error: " + e);
+        }
+    }
 }
-    
-}
+
