@@ -57,25 +57,24 @@ private  void sendRefresh(LSP myLSA){
 
 private String lsaListPW(List <LSP> lspList) {
     ByteArrayOutputStream buf = new ByteArrayOutputStream();
-    PrintStream bw = new PrintStream(buf);
+    PrintStream ps = new PrintStream(buf);
     for (LSP lsp : lspList) {
-        bw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time),lsp.senderPort,lsp.seq,lsp.ttl);
+        ps.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time),lsp.senderPort,lsp.seq,lsp.ttl);
         for (int x=0; x < lsp.adjRouterPort.size(); x++)  {
-            bw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
+            ps.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
         }
-        bw.println();
+        ps.println();
     }
 
     return buf.toString();
 
 }
 
-
 private void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
     Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] acceptConnection");
     try { 
         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
-        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+        PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
         String command = br.readLine();
         /* MockRouter should be able to respond to three possible messages: 
          * (a) link state messages to which it responds with ACK and a newline, 
@@ -84,8 +83,8 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
          * (c) s followed by a newline (stop) to which it responds with STOPPING and a newline and then it stops its thread. 
         */
         if (command.charAt(0) == 'k') {  // Keepalive.  Just just a do-nothing to verify the connect/accept/read/write was working, sends a k back.
-            bw.write("k\n");
-            bw.flush();  
+            pw.println("k");
+            pw.flush();  
         }    
         // Stores the links-distance pairs into 2 arrays, and then puts those in a record class called LSP, those LSPs are then put in a list called listLSP;
         if (command.charAt(0) == 'l') {  // Received a link state message
@@ -140,31 +139,27 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 listLSP.add(lsp);
             } 
             
-            bw.write("ACK\n");
-            bw.flush();
+            pw.println("ACK");
+            pw.flush();
     
         }
     
         if (command.charAt(0) == 'h') {           // Dump all link state messages and routing table *TODO*
-            bw.write("HISTORY\n----------------------------------------\n");
-            bw.write(lsaListPW(listLSPHistory));
-            bw.flush();
+            pw.printf("HISTORY\n----------------------------------------\n%s\n",lsaListPW(listLSPHistory));
+            pw.flush();
 
-            bw.write("CURRENT\n----------------------------------------\n");
-            bw.write(lsaListPW(listLSP));
-            bw.flush();
+            pw.printf("CURRENT\n----------------------------------------\n%s\n",lsaListPW(listLSP));
+            pw.flush();
 
-            bw.write("TABLE\n---------------------------------------\n");
-            bw.write(routeTable.printTable());
-            bw.write("DONE\n");
-            bw.flush();
+            pw.printf("TABLE\n---------------------------------------\n%s\n",routeTable.printTable());
+            pw.flush();
         
-            
+    
         }
         if (command.charAt(0) == 's') {           // STOP *DONE?*
             //System.out.printf("Port %d:%s:%d - RX STOP\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());                       
-            bw.write("STOPPING\n");
-            bw.flush();
+            pw.println("STOPPING");
+            pw.flush();
             s.close();
             keepRunning=false;
             ttlAger.shutdown();
@@ -262,7 +257,6 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 try {
                      ss = new ServerSocket(portNumber);
                      ss.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
-
 
                 }
                 catch (Exception IOException) {
@@ -362,7 +356,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                             //System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
                             Socket s = new Socket("localhost", port);
                             s.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
-                            //s.setSoLinger(true,1); // Probably doesn't help, but we do often close the socket immediately after sending data
+                            s.setSoLinger(true,1); // Probably doesn't help, but we do often close the socket immediately after sending data
                             
                             // We are connectd to the remote router, make sure we are advertising that we can connect to it
                             if (!myLSA.adjRouterPort.contains(port)) {
