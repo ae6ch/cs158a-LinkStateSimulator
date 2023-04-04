@@ -17,4 +17,14 @@ public class LSP {
     public String toString() {
         return "LSP: time=" + time + " senderPort=" + senderPort + " seq=" + seq + " ttl=" + ttl + " adjRouterPort=" + adjRouterPort + " distance=" + distance;
     }
+   
+    public LSP(LSP clone) {
+        this.time = clone.time;
+        this.senderPort = clone.senderPort;
+        this.seq = clone.seq;
+        this.ttl = clone.ttl;
+        this.adjRouterPort = new ArrayList<Integer>(clone.adjRouterPort);
+        this.distance = new ArrayList<Integer>(clone.distance);
+    }
+    
 }

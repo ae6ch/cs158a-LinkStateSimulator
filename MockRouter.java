@@ -32,6 +32,7 @@ public class MockRouter  {
     final int STABLE_TIME = 5000; // How long we have to be stable before we can calculate the routing table
     boolean routeTableRecalcNeeded = false; // Do we need to recalculate the routing table? (set to true every time we get a new LSP)
     LinkedList<LSP> listLSP = new LinkedList<LSP>();
+    LinkedList<LSP> listLSPHistory = new LinkedList<LSP>();
     long timeOfLastLSP=Instant.now().toEpochMilli();  // Last time we received a LSP packet, used to calculate if LSPs are stable
     long stableTime=0; // How long have we been stable? Updated by the TTL expire thread for now, need to move to the watchdog thread for calculating the routing table 
     routingTable routeTable = new routingTable(listLSP,portNumber);
@@ -51,14 +52,30 @@ private  void sendRefresh(LSP myLSA){
         else {
             listLSP.add(myLSA);
         }
+        listLSPHistory.add(new LSP(myLSA)); // Add a copy of myLSA to the history list too. We don't want to add a reference to myLSA because it will change as we update it.
     }
+
+private String lsaListPW(List <LSP> lspList) {
+    ByteArrayOutputStream buf = new ByteArrayOutputStream();
+    PrintStream bw = new PrintStream(buf);
+    for (LSP lsp : lspList) {
+        bw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time),lsp.senderPort,lsp.seq,lsp.ttl);
+        for (int x=0; x < lsp.adjRouterPort.size(); x++)  {
+            bw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
+        }
+        bw.println();
+    }
+
+    return buf.toString();
+
+}
 
 
 private void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
     Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] acceptConnection");
     try { 
         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
-        PrintWriter pw = new PrintWriter(s.getOutputStream(), true);
+        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
         String command = br.readLine();
         /* MockRouter should be able to respond to three possible messages: 
          * (a) link state messages to which it responds with ACK and a newline, 
@@ -67,8 +84,8 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
          * (c) s followed by a newline (stop) to which it responds with STOPPING and a newline and then it stops its thread. 
         */
         if (command.charAt(0) == 'k') {  // Keepalive.  Just just a do-nothing to verify the connect/accept/read/write was working, sends a k back.
-            pw.println("k");
-            pw.flush();  
+            bw.write("k\n");
+            bw.flush();  
         }    
         // Stores the links-distance pairs into 2 arrays, and then puts those in a record class called LSP, those LSPs are then put in a list called listLSP;
         if (command.charAt(0) == 'l') {  // Received a link state message
@@ -76,12 +93,15 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
             boolean dupSeq = false;
             ArrayList<Integer> adjRouterPorts = new ArrayList<Integer>(100);
             ArrayList<Integer> distances = new ArrayList<Integer>(100);
-    
+            long timeReceived = Instant.now().toEpochMilli()-startTime;
             for (int x=4; x < chunks.length; x++) {
                 String[] adjRouterPortDistance = chunks[x].split("-");
                 adjRouterPorts.add(Integer.parseInt(adjRouterPortDistance[0]));
                 distances.add(Integer.parseInt(adjRouterPortDistance[1]));
             }   
+            
+            listLSPHistory.add(new LSP(timeReceived,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances));
+
             List<LSP> listLSPCopy = new LinkedList<LSP>(listLSP); // Make a copy of the list so we can iterate through it without getting a concurrent modification exception
             for (LSP lspdb : listLSPCopy) {
             // Find existing LSP for router
@@ -91,7 +111,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                         
                     } 
                     else if (lspdb.seq <= Integer.parseInt(chunks[2])) { // If the sequence number is same or newer update it
-                        lspdb.time=Instant.now().toEpochMilli()-startTime;    
+                        lspdb.time=timeReceived;
                         lspdb.seq=Integer.parseInt(chunks[2]);
                         lspdb.ttl=Integer.parseInt(chunks[3]);
                         lspdb.adjRouterPort=adjRouterPorts;
@@ -116,36 +136,35 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
             //if (dupSeq==false) { 
                 timeOfLastLSP = Instant.now().toEpochMilli();
                 routeTableRecalcNeeded = true;
-                LSP lsp = new LSP(Instant.now().toEpochMilli()-startTime,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
+                LSP lsp = new LSP(timeReceived,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
                 listLSP.add(lsp);
             } 
             
-            pw.println("ACK");
-            pw.flush();
+            bw.write("ACK\n");
+            bw.flush();
     
         }
     
         if (command.charAt(0) == 'h') {           // Dump all link state messages and routing table *TODO*
-            pw.println("HISTORY");
-            pw.flush();
-            for (LSP lsp : listLSP) {
-                pw.printf("T+%s %d %d %d", Long.toUnsignedString(lsp.time),lsp.senderPort,lsp.seq,lsp.ttl);
-                for (int x=0; x < lsp.adjRouterPort.size(); x++) {
-                    pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
-                }
-                pw.println();
-                pw.flush();
-            }
-         ;
-            pw.printf("TABLE\n%s",routeTable.printTable());
-            pw.flush();
+            bw.write("HISTORY\n----------------------------------------\n");
+            bw.write(lsaListPW(listLSPHistory));
+            bw.flush();
+
+            bw.write("CURRENT\n----------------------------------------\n");
+            bw.write(lsaListPW(listLSP));
+            bw.flush();
+
+            bw.write("TABLE\n---------------------------------------\n");
+            bw.write(routeTable.printTable());
+            bw.write("DONE\n");
+            bw.flush();
         
-    
+            
         }
         if (command.charAt(0) == 's') {           // STOP *DONE?*
             //System.out.printf("Port %d:%s:%d - RX STOP\n",portNumber,s.getInetAddress().getHostAddress(),s.getPort());                       
-            pw.println("STOPPING");
-            pw.flush();
+            bw.write("STOPPING\n");
+            bw.flush();
             s.close();
             keepRunning=false;
             ttlAger.shutdown();
@@ -192,6 +211,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
 
             //System.out.printf("[%d] LSA Refresh\n",portNumber);
             sendRefresh(myLSA);
+            
             
           }
         }, 0, LSA_REFRESH_TIME, TimeUnit.SECONDS);
@@ -242,6 +262,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 try {
                      ss = new ServerSocket(portNumber);
                      ss.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
+
 
                 }
                 catch (Exception IOException) {
@@ -341,7 +362,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                             //System.out.printf("[%d->%s]  Sending LSP %d:%d\n",portNumber,ep[0],lsp.senderPort,lsp.seq);
                             Socket s = new Socket("localhost", port);
                             s.setSoTimeout(10000); // Try to prevent BufferedReader and PrintWriter from blocking forever
-                            s.setSoLinger(true,1); // Probably doesn't help, but we do often close the socket immediately after sending data
+                            //s.setSoLinger(true,1); // Probably doesn't help, but we do often close the socket immediately after sending data
                             
                             // We are connectd to the remote router, make sure we are advertising that we can connect to it
                             if (!myLSA.adjRouterPort.contains(port)) {
@@ -353,7 +374,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                         
 
                             BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
-                            PrintWriter pw = new PrintWriter(s.getOutputStream(),false);
+                            PrintWriter pw = new PrintWriter(s.getOutputStream(),true);
                             pw.printf("l %d %d %d", lsp.senderPort,lsp.seq,lsp.ttl);
                             for (int x=0; x < lsp.adjRouterPort.size(); x++) {
                                 pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
