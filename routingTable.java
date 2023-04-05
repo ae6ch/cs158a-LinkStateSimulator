@@ -106,7 +106,7 @@ public class routingTable {
                     try {
                         current = routeTable.get(active.adjRouterPort.get(j)).getDistance();
                     } catch (Exception NullPointerException) {  // Attempt to recover by max out the distance if there is no distance. 
-                        System.out.println("Error3: NullPointerException");
+                        //System.out.println("Error3: NullPointerException");
                         current = Integer.MAX_VALUE;
                     }
                     if(portDist < current){
@@ -114,7 +114,7 @@ public class routingTable {
                         try {
                             routeTable.put(active.adjRouterPort.get(j),entry);
                         } catch (Exception NullPointerException) {  // Attempt to recover  
-                            System.out.println("Error4: NullPointerException");
+                            //System.out.println("Error4: NullPointerException");
                             //routeTable.put(active.adjRouterPort.get(j),entry);
                         }
                         
