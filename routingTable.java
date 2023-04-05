@@ -57,6 +57,7 @@ public class routingTable {
     
     // create a method called calculateTable runs a dijkstra algorithm to calculate the shortest path
     public void calculateTable() {
+        int nh=-1;
         boolean[] perm = new boolean[listLSP.size()];
         List<LSP> listLSPCopy = new ArrayList<LSP>(listLSP);
         for (LSP lsp : listLSPCopy) {
@@ -68,6 +69,7 @@ public class routingTable {
         }
 
         for(int i = 0; i < listLSP.size(); i++){
+            
             LSP active = new LSP(0,0,0,0, new ArrayList<Integer>(), new ArrayList<Integer>());
             int min = Integer.MAX_VALUE;
             int index = -1;
@@ -76,6 +78,7 @@ public class routingTable {
                 LSP lsp = listLSP.get(j);
                 if(!perm[j]) {
                     routeTableEntry rte = routeTable.get(lsp.senderPort); 
+                    nh = lsp.senderPort;
                     int n = rte.getDistance();
                     if (n < min) {
                         min = n;
@@ -110,10 +113,14 @@ public class routingTable {
                         current = Integer.MAX_VALUE;
                     }
                     if(portDist < current){
-                        routeTableEntry entry = new routeTableEntry(active.adjRouterPort.get(j), portDist, active.senderPort);
+                       // System.out.printf("[%d] %d active.adjRouterPort.get(j)=%d nh=%d asp=%d %d\n",portNumber,portDist, active.adjRouterPort.get(j), nh, active.senderPort, routeTable.get(active.senderPort).getNexthop());
+                        //routeTableEntry entry = new routeTableEntry(active.adjRouterPort.get(j), portDist, active.senderPort);
                         try {
-                            routeTable.put(active.adjRouterPort.get(j),entry);
-                        } catch (Exception NullPointerException) {  // Attempt to recover  
+                            if ( active.senderPort == portNumber)
+                            routeTable.put(active.adjRouterPort.get(j),new routeTableEntry(active.adjRouterPort.get(j), portDist,active.adjRouterPort.get(j)));
+                        else
+                            routeTable.put(active.adjRouterPort.get(j),new routeTableEntry(active.adjRouterPort.get(j), portDist, routeTable.get(active.senderPort).getNexthop()));
+                        } catch (Exception NullPointerException) {  // Attempt to recover  )
                             //System.out.println("Error4: NullPointerException");
                             //routeTable.put(active.adjRouterPort.get(j),entry);
                         }

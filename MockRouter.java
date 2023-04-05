@@ -39,7 +39,7 @@ public class MockRouter  {
     // Start the background processes
     ScheduledExecutorService ttlAger = Executors.newSingleThreadScheduledExecutor();  // This is the TTL Age task
     ScheduledExecutorService lsaRefresh = Executors.newSingleThreadScheduledExecutor();  // This is the lsaRefresh task
-private  void sendRefresh(LSP myLSA){
+private synchronized void sendRefresh(LSP myLSA){
         myLSA.time=Instant.now().toEpochMilli()-startTime;
         myLSA.seq++;
         myLSA.ttl=INITIAL_TTL;
@@ -53,7 +53,7 @@ private  void sendRefresh(LSP myLSA){
         listLSPHistory.add(new LSP(myLSA)); // Add a copy of myLSA to the history list too. We don't want to add a reference to myLSA because it will change as we update it.
     }
 
-private String lsaListPW(List <LSP> lspList) {
+private synchronized String lsaListPW(List <LSP> lspList) {
     ByteArrayOutputStream buf = new ByteArrayOutputStream();
     PrintStream ps = new PrintStream(buf);
     for (LSP lsp : lspList) {
@@ -68,7 +68,7 @@ private String lsaListPW(List <LSP> lspList) {
 
 }
 
-private void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
+private  void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
     Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] acceptConnection");
     try { 
         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
@@ -266,12 +266,12 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                     try {
                         try {
                             s = ss.accept();
-                            acceptConnection(s);  // BUGGY: If you want concurrency, you need to spawn a thread here, comment out this line and uncomment the ExecutorService code below
+                            //acceptConnection(s);  // BUGGY: If you want concurrency, you need to spawn a thread here, comment out this line and uncomment the ExecutorService code below
 
                         }
                         catch (SocketTimeoutException ignore) {} // We set a timeout, so this is expected
 
-                        /* 
+                         
                         ExecutorService acceptor = Executors.newSingleThreadExecutor();  // The code does not handle concurrency very well, so commented this out
                         acceptor.submit(new Runnable() {
                             @Override
@@ -279,7 +279,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                                 acceptConnection(s);
                             }
                         });
-                        */
+                        
                     }
                     catch (Exception IOException) {
                         System.out.printf("[%d] error on accept() - %s\n",portNumber,IOException);
@@ -303,7 +303,7 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                 
                 Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] Initiator");
 
-                HashMap<Integer,seqRecord> hashseqRecord = new HashMap<>();
+                HashMap<Integer,SeqRecord> hashseqRecord = new HashMap<>();
 
                 
                 while (keepRunning) { // Recalculate the routing table if we have been stable for a while
@@ -331,10 +331,10 @@ private void acceptConnection(Socket s) { // This code is used by the listener t
                         // Find seqRecord for this ep, if it doesnt exist, insert a new one with a empty seqAck table
                         if (!hashseqRecord.containsKey(Integer.parseInt(ep[0]))) {
                             HashMap<Integer,Integer> sa = new HashMap<Integer,Integer>();
-                            seqRecord sr = new seqRecord(Integer.parseInt(ep[0]),sa);
+                            SeqRecord sr = new SeqRecord(Integer.parseInt(ep[0]),sa);
                             hashseqRecord.put(Integer.parseInt(ep[0]),sr);
                         }
-                        seqRecord sr = hashseqRecord.get(Integer.parseInt(ep[0]));
+                        SeqRecord sr = hashseqRecord.get(Integer.parseInt(ep[0]));
                         //sr.seqAck().get(Integer.parseInt(ep[0]));
                         try {
                          
