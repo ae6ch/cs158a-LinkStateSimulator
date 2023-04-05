@@ -14,7 +14,7 @@ import java.io.InputStreamReader;
 public class LinkStateSimulator {
 
     public static void main(String[] args) throws FileNotFoundException, IOException {
-        ArrayList routers = new ArrayList<MockRouter>();
+        ArrayList<MockRouter> routers = new ArrayList<>();
         File topology = new File(args[0]);
         FileReader f = new FileReader(topology);
         char c = (char) f.read();
@@ -51,9 +51,9 @@ public class LinkStateSimulator {
                 }
                 case "s":
                 case "h":
-                    sendCommand("localhost",Integer.parseInt(cm[1]),cm[0]);
-                    break;
-            }  
+                        sendCommand("localhost",Integer.parseInt(cm[1]),cm[0]);
+                 
+            } 
         }
     }
     private static void sendCommand(String host, int port, String command)  {
