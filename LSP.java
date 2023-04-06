@@ -1,11 +1,13 @@
 //Zayd Kudaimi 015637245 Shinhyung Lee 014175837 Steve Rubin 017439448
 
+import java.util.List;
 import java.util.ArrayList;
 public class LSP {
     public long time;
     public int senderPort;
     public int seq;
     public int ttl;
+    public int receiverFromPort;
     public ArrayList<Integer> adjRouterPort;
     public ArrayList<Integer> distance;
     public LSP(long time, int senderPort, int seq, int ttl, ArrayList<Integer> adjRouterPort, ArrayList<Integer> distance) {
@@ -27,6 +29,15 @@ public class LSP {
         this.ttl = clone.ttl;
         this.adjRouterPort = new ArrayList<Integer>(clone.adjRouterPort);
         this.distance = new ArrayList<Integer>(clone.distance);
+    }
+    public LSP(long time, int senderPort, int seq, int ttl, ArrayList<Integer> adjRouterPort, ArrayList<Integer> distance, int receiverFromPort) {
+        this.time = time;
+        this.senderPort = senderPort;
+        this.seq = seq;
+        this.ttl = ttl;
+        this.adjRouterPort = adjRouterPort;
+        this.distance = distance;
+        this.receiverFromPort = receiverFromPort;
     }
     
 }

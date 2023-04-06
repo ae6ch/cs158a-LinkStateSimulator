@@ -69,6 +69,7 @@ private synchronized String lsaListPW(List <LSP> lspList) {
 }
 
 private  void acceptConnection(Socket s) { // This code is used by the listener thread to accept a connection and handle it
+    int remotePort=-1;
     Thread.currentThread().setName("[" + Integer.toString(portNumber) + "] acceptConnection");
     try { 
         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
@@ -80,6 +81,11 @@ private  void acceptConnection(Socket s) { // This code is used by the listener 
          * followed by a line with the word TABLE followed by lines giving its routing table, 
          * (c) s followed by a newline (stop) to which it responds with STOPPING and a newline and then it stops its thread. 
         */
+        if (command.charAt(0) == 'H') {  // Received Hello (format is H REMOTEPORT), then read the next line
+            String[] chunks = command.split(" ");
+            remotePort = Integer.parseInt(chunks[1]);
+            command = br.readLine();
+        }
         if (command.charAt(0) == 'k') {  // Keepalive.  Just just a do-nothing to verify the connect/accept/read/write was working, sends a k back.
             pw.println("k");
             pw.flush();  
@@ -133,7 +139,7 @@ private  void acceptConnection(Socket s) { // This code is used by the listener 
             //if (dupSeq==false) { 
                 timeOfLastLSP = Instant.now().toEpochMilli();
                 routeTableRecalcNeeded = true;
-                LSP lsp = new LSP(timeReceived,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances);
+                LSP lsp = new LSP(timeReceived,Integer.parseInt(chunks[1]),Integer.parseInt(chunks[2]),Integer.parseInt(chunks[3]),adjRouterPorts,distances,remotePort);
                 listLSP.add(lsp);
             } 
             
@@ -367,11 +373,13 @@ private  void acceptConnection(Socket s) { // This code is used by the listener 
 
                             BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream())); 
                             PrintWriter pw = new PrintWriter(s.getOutputStream(),true);
+                            pw.println("H " + portNumber);  // Identify ourselves to the remote port
+                            pw.flush();
                             pw.printf("l %d %d %d", lsp.senderPort,lsp.seq,lsp.ttl);
-                            for (int x=0; x < lsp.adjRouterPort.size(); x++) {
-                                pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));
-                                
-                            }
+                            if (lsp.receiverFromPort != portNumber)  // Do not send this where we received it from
+                                for (int x=0; x < lsp.adjRouterPort.size(); x++) {
+                                    pw.printf(" %d-%d",lsp.adjRouterPort.get(x),lsp.distance.get(x));        
+                                 }
                             pw.println();
                             pw.flush();
                
