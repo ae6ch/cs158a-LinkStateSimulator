@@ -1,6 +1,5 @@
 //Zayd Kudaimi 015637245 Shinhyung Lee 014175837 Steve Rubin 017439448
 
-import java.util.List;
 import java.util.ArrayList;
 public class LSP {
     public long time;
@@ -27,8 +26,8 @@ public class LSP {
         this.senderPort = clone.senderPort;
         this.seq = clone.seq;
         this.ttl = clone.ttl;
-        this.adjRouterPort = new ArrayList<Integer>(clone.adjRouterPort);
-        this.distance = new ArrayList<Integer>(clone.distance);
+        this.adjRouterPort = new ArrayList<>(clone.adjRouterPort);
+        this.distance = new ArrayList<>(clone.distance);
     }
     public LSP(long time, int senderPort, int seq, int ttl, ArrayList<Integer> adjRouterPort, ArrayList<Integer> distance, int receiverFromPort) {
         this.time = time;

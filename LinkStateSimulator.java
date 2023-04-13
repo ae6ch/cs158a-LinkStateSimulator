@@ -36,7 +36,7 @@ public class LinkStateSimulator {
             }
             c = (char) f.read();
         }
-        
+        f.close();
         System.out.println("Initialization complete. Ready to accept commands.");
         
         Scanner input = new Scanner(System.in);
@@ -48,13 +48,18 @@ public class LinkStateSimulator {
                 case "e": {
                     System.out.println("Goodbye!");
                     System.exit(0);
+                    break;
                 }
                 case "s":
                 case "h":
                         sendCommand("localhost",Integer.parseInt(cm[1]),cm[0]);
+                        break;
+                default:
+                    System.out.println("Invalid command");
                  
             } 
         }
+        input.close();
     }
     private static void sendCommand(String host, int port, String command)  {
         Socket socket;
@@ -71,6 +76,7 @@ public class LinkStateSimulator {
         } catch (Exception e) {
             System.out.println("error: " + e);
         }
+        
     }
 }
 
